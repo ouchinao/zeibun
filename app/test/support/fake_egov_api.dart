@@ -11,6 +11,7 @@ class FakeEgovApi extends EgovApi {
   FakeEgovApi();
 
   final Map<String, String Function(Uri uri)> routes = {};
+  final Map<String, String Function(Uri uri)> prefixRoutes = {};
   final List<Uri> calls = [];
 
   /// すべての呼び出しを失敗させる（オフライン再現）。
@@ -19,13 +20,21 @@ class FakeEgovApi extends EgovApi {
   void onPath(String path, String Function(Uri uri) handler) =>
       routes[path] = handler;
 
+  /// パスの前方一致（`/api/2/law_data/` など、ID ごとに登録しなくて済むように）。
+  void onPathPrefix(String prefix, String Function(Uri uri) handler) =>
+      prefixRoutes[prefix] = handler;
+
   @override
   Future<Uint8List> getBytes(Uri uri) async {
     calls.add(uri);
     if (offline) {
       throw EgovApiException(EgovErrorKind.network, uri, message: 'offline');
     }
-    final h = routes[uri.path];
+    final h = routes[uri.path] ??
+        prefixRoutes.entries
+            .where((e) => uri.path.startsWith(e.key))
+            .map((e) => e.value)
+            .firstOrNull;
     if (h == null) {
       throw EgovApiException(EgovErrorKind.clientError, uri,
           statusCode: 404, message: 'no route for ${uri.path}');
@@ -40,6 +49,15 @@ AppDatabase inMemoryDatabase() =>
 /// 実 API のレスポンスを保存したフィクスチャはコアパッケージと共用する。
 String fixture(String name) =>
     File('../packages/zeibun_core/test/fixtures/$name').readAsStringSync();
+
+/// `/law_data/{revision_id}` 用: 地方法人税法の実レスポンスを、要求されたリビジョン ID を
+/// 封筒に埋めて返す（どの法令 ID にも同じ本文を返す）。
+String Function(Uri) lawDataHandler() {
+  final xml = fixture('law_data_426AC0000000011_地方法人税法.xml');
+  final revTag = RegExp('<law_revision_id>[^<]+</law_revision_id>');
+  return (uri) => xml.replaceFirst(
+      revTag, '<law_revision_id>${uri.pathSegments.last}</law_revision_id>');
+}
 
 /// `/laws` 用: 国税の実レスポンス抜粋（12 法令）を、クエリに関わらず返す。
 /// 明示指定 ID（`law_id=`）には空を返す。
