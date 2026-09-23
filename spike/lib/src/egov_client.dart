@@ -117,7 +117,19 @@ class EgovClient {
   Future<FetchResult> keyword(Map<String, String> query) =>
       get('keyword', {'response_format': 'json', ...query});
 
-  Future<FetchResult> get(String path, [Map<String, String>? query]) async {
+  /// `GET /law_data/{id}` を XML 本文（gzip が効く）で取る。
+  /// `/law_file` は Content-Encoding 無しで返るため、本文の取得はこちらを使う。
+  Future<FetchResult> lawDataXml(String id,
+          {bool omitAmendmentSupplProvision = false}) =>
+      get('law_data/$id', {
+        'response_format': 'xml',
+        'law_full_text_format': 'xml',
+        if (omitAmendmentSupplProvision)
+          'omit_amendment_suppl_provision': 'true',
+      });
+
+  Future<FetchResult> get(String path,
+      [Map<String, String>? query, Map<String, String>? headers]) async {
     final uri = resolve(path, query);
     Object? lastError;
     for (var attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -133,6 +145,7 @@ class EgovClient {
         final req = await _client.getUrl(uri).timeout(timeout);
         req.headers.set(HttpHeaders.acceptEncodingHeader, 'gzip');
         req.headers.set(HttpHeaders.acceptHeader, 'application/json, */*');
+        headers?.forEach(req.headers.set);
         final res = await req.close().timeout(timeout);
         final chunks = <int>[];
         await res.listen(chunks.addAll).asFuture<void>().timeout(timeout * 2);
@@ -144,15 +157,15 @@ class EgovClient {
         final body = encoding.contains('gzip') ? gzip.decode(chunks) : chunks;
         totalWireBytes += wire;
         totalBytes += body.length;
-        final headers = <String, String>{};
-        res.headers.forEach((k, v) => headers[k] = v.join(', '));
+        final resHeaders = <String, String>{};
+        res.headers.forEach((k, v) => resHeaders[k] = v.join(', '));
         final result = FetchResult(
           uri: uri,
           statusCode: res.statusCode,
           bytes: body,
           wireBytes: wire,
           elapsed: sw.elapsed,
-          headers: headers,
+          headers: resHeaders,
           attempts: attempt,
         );
         if (res.statusCode >= 500) {

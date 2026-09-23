@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  version: 2.1.138
+  version: 2.1.139
   title: 法令API Version 2
   description: |
     ## はじめに
@@ -55,27 +55,27 @@ info:
 
 
     >> <table bgcolor="white" border="1">
-        <tr bgcolor="#DDFFFF">
-            <th width="5%">改正区分</th>
-            <th width="25%">改正区分の見分け方</th>
-        </tr>
-        <tr>
-            <td>　新規制定 </td>
-            <td>　amendment_typeが「1」 かつ missionが「New」のもの</td>
-        </tr>
-        <tr>
-            <td>　一部改正 </td>
-            <td>　missionが「Partial」のもの</td>
-        </tr>
-        <tr>
-            <td>　被改正法 </td>
-            <td>　amendment_typeが「3」 かつ missionが「New」のもの</td>
-        </tr>
-        <tr>
-            <td>　廃止 </td>
-            <td>　amendment_typeが「8」 又は repeal_statusが「Repeal」「Expire」「LossOfEffectiveness」のもの</td>
-        </tr>
-      </table>
+    >>    <tr bgcolor="#DDFFFF">
+    >>        <th width="5%">改正区分</th>
+    >>        <th width="25%">改正区分の見分け方</th>
+    >>    </tr>
+    >>    <tr>
+    >>        <td>　新規制定 </td>
+    >>        <td>　amendment_typeが「1」 かつ missionが「New」のもの</td>
+    >>    </tr>
+    >>    <tr>
+    >>        <td>　一部改正 </td>
+    >>        <td>　missionが「Partial」のもの</td>
+    >>    </tr>
+    >>    <tr>
+    >>        <td>　被改正法 </td>
+    >>        <td>　amendment_typeが「3」 かつ missionが「New」のもの</td>
+    >>    </tr>
+    >>    <tr>
+    >>        <td>　廃止 </td>
+    >>        <td>　amendment_typeが「8」 又は repeal_statusが「Repeal」「Expire」「LossOfEffectiveness」のもの</td>
+    >>    </tr>
+    >>  </table>
 
 servers:
   - url: https://laws.e-gov.go.jp/api/2
@@ -308,10 +308,12 @@ paths:
           style: form
           explode: false
           description: |
-            並び順。返却値の項目を指定。（複数指定可）<br>
-            先頭に`+`を付した場合は昇順、`-`の符号を付した場合は降順。符号がない場合は昇順。<br>
-            > 例： `+law_info.law_id,-revision_info.amendment_promulgate_date`<br>
-            > 既定値： `law_info.law_id`<br>
+            レスポンスの並び順を指定（複数指定可）。<br>
+            <a href="#model-law_info">`law_info`</a> 及び <a href="#model-revision_info">`revision_info`</a> 配下のフィールドを指定可能。<br>
+            先頭に + を付けると昇順、- を付けると降順、符号がない場合は昇順。<br><br>
+            
+            例： `+law_info.law_id,-revision_info.amendment_promulgate_date`<br>
+            既定値： `law_info.law_id`<br>
           schema:
             type: string
 
@@ -723,16 +725,13 @@ paths:
         ## XMLとJSONの関係性
 
         >> 例）以下のXMLをJSONで表した場合の対応表を以下に記します。<br>
-        >> ### XMLイメージ
-
+        >> ### XML
         >>> <pre><code>&lt;Sentence Num="1" WritingMode="vertical"&gt;
         &nbsp;&nbsp;この法律は、処分、行政指導及び届出に関する手続並びに命令等を定める手続に関し、・・・
         &lt;/Sentence&gt;
-        </code></pre>
+        </pre></code>
 
-
-
-        >> ### JSONイメージ
+        >> ### JSON（詳細版）
         >>> <pre><code>{
         &nbsp;&nbsp;"tag": "Sentence",
         &nbsp;&nbsp;"attr": {
@@ -743,30 +742,45 @@ paths:
         &nbsp;&nbsp;&nbsp;&nbsp;"この法律は、処分、行政指導及び届出に関する手続並びに命令等を定める手続に関し、・・・"
         &nbsp;&nbsp;]
         }
+        </pre></code>
+
+        >> ### JSON（簡易版）
+        >>> <pre><code>{
+        &nbsp;&nbsp;"Sentence": [  
+        &nbsp;&nbsp;&nbsp;&nbsp; "この法律は、処分、行政指導及び届出に関する手続並びに命令等を定める手続に関し、・・・"
+        &nbsp;&nbsp;&nbsp;&nbsp;]
+        }
         </code></pre>
 
+        >>> - インライン要素（Ruby等）はテキストにタグごと埋め込まれます。
+        >>> - 属性は`AmendLawNum`、`Extract`、`Paragraph`要素の`Num`のみ、フィールドとして含まれます。
+        
 
-        >> ### XMLとJSONの対応表
+        >> ### XMLとJSON（詳細版）の対応表
         >>> <table bgcolor="white" border="1">
           <tr bgcolor="#DDFFFF">
             <th width="10%">項目名</th>
-            <th width="45%">XML</th>
-            <th width="45%">JSON</th>
+            <th width="30%">XML</th>
+            <th width="30%">JSON（詳細版）</th>
+            <th width="30%">JSON（簡易版）</th>
           </tr>
           <tr>
             <td>タグ</td>
             <td>Sentence</td>
             <td>"tag": "Sentence"</td>
+            <td>Sentence</td>
           </tr>
           <tr>
             <td>属性</td>
             <td>Num="1" WritingMode="vertical"</td>
             <td>"attr": {"Num": "1","WritingMode": "vertical"}</td>
+            <td>なし（一部の属性は、該当タグと同階層に別要素として格納する場合あり）</td>
             </tr>
           <tr>
             <td>子要素</td>
             <td>この法律は、処分、行政指導及び届出に関する手続並びに命令等を定める手続に関し、・・・</td>
             <td>"children": ["この法律は、処分、行政指導及び届出に関する手続並びに命令等を定める手続に関し、・・・"]</td>
+            <td>この法律は、処分、行政指導及び届出に関する手続並びに命令等を定める手続に関し、・・・</td>
           </tr>
         </table>
 
@@ -812,6 +826,20 @@ paths:
             allOf:
               - $ref: "#/components/schemas/elm"
 
+        - name: json_format
+          in: query
+          description: |
+            JSONレスポンスの`law_full_text`の形式を指定します。<br>
+            `full`を指定した場合、JSON（詳細版）が返却されます。法令XMLを解説した詳細な構造です。<br>
+            `light`を指定した場合、JSON（簡易版）が返却されます。パースに最適化された簡易的な構造です。<br>
+            レスポンス形式がJSONの場合のみ有効です。<br>
+            > 例： `light`<br>
+            > 既定値： `full`<br>
+          schema:
+            nullable: true
+            type: string
+            enum: [full, light]
+
         - name: omit_amendment_suppl_provision
           in: query
           description: |
@@ -852,6 +880,8 @@ paths:
               examples:
                 Example 1:
                   $ref: "#/components/examples/example_law_data_json"
+                Example 2:
+                  $ref: "#/components/examples/example_law_data_json2"
             application/xml:
               schema:
                 $ref: "#/components/schemas/law_data_response"
@@ -1174,10 +1204,12 @@ paths:
           style: form
           explode: false
           description: |
-            並び順。返却値の項目を指定。（複数指定可）<br>
-            先頭に`+`を付した場合は昇順、`-`の符号を付した場合は降順。符号がない場合は昇順。<br>
-            > 例： `+law_info.law_id,-revision_info.amendment_promulgate_date`<br>
-            > 既定値： `law_info.law_id`<br>
+            レスポンスの並び順を指定（複数指定可）。<br>
+            <a href="#model-law_info">`law_info`</a> 及び <a href="#model-revision_info">`revision_info`</a> 配下のフィールドを指定可能。<br>
+            先頭に + を付けると昇順、- を付けると降順、符号がない場合は昇順。<br><br>
+            
+            例： `+law_info.law_id,-revision_info.amendment_promulgate_date`<br>
+            既定値： `law_info.law_id`<br>
           schema:
             type: string
 
@@ -1652,6 +1684,97 @@ components:
                             Num: "1"
                             OldStyle: "false"
 
+
+    example_law_data_json2:
+      value:
+        attached_files_info:
+          image_data: ""
+          attached_files:
+            - law_revision_id: 411AC0000000127_19990813_000000000000000
+              src: ./pict/H11HO127-001.jpg
+              updated: "2024-11-23T01:05:36+09:00"
+            - law_revision_id: 411AC0000000127_19990813_000000000000000
+              src: ./pict/H11HO127-002.jpg
+              updated: "2024-11-23T01:05:36+09:00"
+        law_info:
+          law_type: Act
+          law_id: 411AC0000000127
+          law_num: 平成十一年法律第百二十七号
+          law_num_era: Heisei
+          law_num_num: '127'
+          law_num_type: Act
+          law_num_year: '11'
+          promulgation_date: '1999-08-13'
+        revision_info:
+          abbrev: 国旗国歌法,日の丸君が代法,国旗・国歌法
+          amendment_enforcement_comment: null
+          amendment_enforcement_date: '1999-08-13'
+          amendment_law_id: null
+          amendment_law_num: null
+          amendment_law_title: null
+          amendment_law_title_kana: null
+          amendment_promulgate_date: '1999-08-13'
+          amendment_scheduled_enforcement_date: null
+          amendment_type: '1'
+          category: 文化
+          current_revision_status: CurrentEnforced
+          law_revision_id: 411AC0000000127_19990813_000000000000000
+          law_title: 国旗及び国歌に関する法律
+          law_title_kana: こっきおよびこっかにかんするほうりつ
+          law_type: Act
+          mission: New
+          remain_in_force: 'false'
+          repeal_date: null
+          repeal_status: None
+          updated: '2024-07-21T13:56:59+09:00'
+        law_full_text:
+          Law:
+            LawBody:
+              LawTitle: 国旗及び国歌に関する法律
+              LawNum: 平成十一年法律第百二十七号
+              MainProvision:
+                Article:
+                - ArticleCaption: （国旗）
+                  ArticleTitle: 第一条
+                  Paragraph:
+                  - ParagraphNum: null
+                    ParagraphSentence:
+                      Sentence:
+                      - 国旗は、日章旗とする。
+                  - ParagraphNum: ２
+                    ParagraphSentence:
+                      Sentence:
+                      - 日章旗の制式は、別記第一のとおりとする。
+                - ArticleCaption: （国歌）
+                  ArticleTitle: 第二条
+                  Paragraph:
+                  - ParagraphNum: null
+                    ParagraphSentence:
+                      Sentence:
+                      - 国歌は、君が代とする。
+                  - ParagraphNum: ２
+                    ParagraphSentence:
+                      Sentence:
+                      - 君が代の歌詞及び楽曲は、別記第二のとおりとする。
+              SupplProvision:
+                Paragraph:
+                - ParagraphCaption: （施行期日）
+                  ParagraphNum: １
+                  ParagraphSentence:
+                    Sentence:
+                    - この法律は、公布の日から施行する。
+                - ParagraphCaption: （商船規則の廃止）
+                  ParagraphNum: ２
+                  ParagraphSentence:
+                    Sentence:
+                    - 商船規則（明治三年太政官布告第五十七号）は、廃止する。
+                - ParagraphCaption: （日章旗の制式の特例）
+                  ParagraphNum: ３
+                  ParagraphSentence:
+                    Sentence:
+                    - 日章旗の制式については、当分の間、別記第一の規定にかかわらず、寸法の割合について縦を横の十分の七とし、かつ、日章の中心の位置について旗の中心から旗<Ruby>竿<Rt>ざお</Rt></Ruby>側に横の長さの百分の一偏した位置とすることができる。
+                SupplProvisionLabel: 附　則
+        
 
     example_law_data_xml:
       value: |
@@ -2568,15 +2691,16 @@ components:
             法令本文<br><br>
               * `law_full_text_format`と`response_format`の指定方法によって、レスポンス形式が変化します。<br><br>
               * データ構造の詳細は<a href="https://laws.e-gov.go.jp/docs/" target="_blank">法令データ ドキュメンテーション</a>を参照してください。<br><br>
-              * JSON形式とXML形式の各要素は、丸数字で対応関係を表現しています。<br><br>
-              * JSON形式では、`children`オブジェクトでXML形式の階層構造を表現しています。<br><br>
+              * JSON（詳細版）形式、JSON（簡易版）形式とXML形式の各要素は、丸数字で対応関係を表現しています。<br><br>
+              * JSON（詳細版）形式では、`children`オブジェクトでXML形式の階層構造を表現しています。<br><br>
 
           oneOf:
             - type: object
               description: |
-                `law_full_text_format`と`response_format`が`json`の場合、JSON形式で返却します。<br>
+                - `law_full_text_format`と`response_format`が`json`の場合、JSON形式で返却します。
+                - <a target="_blank" href="/api/2/swagger-ui/lawapi-v2-json-light-schema.yaml" rel="noopener noreferrer" class="link"><span class="url"> lawapi-v2-json-light-schema.yaml</span></a>に、JSON（簡易版）のLawスキーマ配下のスキーマ定義が記載されております。
                 
-                >> ### JSON形式例
+                >> ### JSON（詳細版）
                 >>> <pre><code>{
                 &nbsp;&nbsp;"tag": "Law",  ①
                 &nbsp;&nbsp;"attr": {
@@ -2604,11 +2728,21 @@ components:
                 }</code></pre>
 
 
+                >> ### JSON（簡易版）
+                >>> <pre><code>{
+                &nbsp;&nbsp;"Law": {  ①
+                &nbsp;&nbsp;&nbsp;&nbsp;"LawBody": {  ④
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"LawTitle": "保管金規則"  ⑤ ⑦
+                &nbsp;&nbsp;&nbsp;&nbsp;}
+                &nbsp;&nbsp;}
+                }</code></pre>
+
+
                 <br><br>
                 `law_full_text_format`と`response_format`が`xml`の場合、XML形式で返却します。<br>
 
 
-                >> ### XML形式例
+                >> ### XML
                 >>> <pre><code>&nbsp;①  ②                      ③
                 &lt;Law LawId="123AC0000000001" LawType="Act"&gt;
                 &nbsp;&nbsp;&nbsp;④
@@ -2627,7 +2761,6 @@ components:
 
                 >> ### Base64形式例
                 >>><pre><code>"PFBhcmFncmFwaCBIaWRlPSJmYWxzZSIgTnVtPSIxIiBPbGRTdHlsZT0iZmFsc2UiPgogICAgICAgICAgPFBhcmFncmFwaE51bS8+CiAgICAgICAgICA8UGFyYWdyYXBoU2VudGVuY2U+CiAgICAgICAgICAgIDxTZW50ZW5jZSBXcml0aW5nTW9kZT0idmVydGljYWwiPuWbveaXl+OBr+OAgeaXpeeroOaXl+OBqOOBmeOCi+OAgjwvU2VudGVuY2U+CiAgICAgICAgICA8L1BhcmFncmFwaFNlbnRlbmNlPgogICAgICAgIDwvUGFyYWdyYXBoPg=="</code></pre>
-
 
     law_info:
       type: object

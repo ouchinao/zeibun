@@ -81,7 +81,18 @@ class LawParser {
 
   static const _appdxPrefix = 'Appdx';
 
+  /// `/law_data` の XML レスポンス（`law_data_response > law_full_text > Law`）
+  /// でも `/law_file` の `Law` でも、`Law` 要素を返す。
+  static LawNode unwrapLaw(LawNode node) {
+    if (node.tag == 'law_data_response') {
+      final law = node.firstChild('law_full_text')?.firstChild('Law');
+      if (law != null) return law;
+    }
+    return node;
+  }
+
   LawHeader header(LawNode law) {
+    law = unwrapLaw(law);
     final body = law.firstChild('LawBody');
     return LawHeader(
       lawNum: law.firstChild('LawNum')?.text,
@@ -91,6 +102,7 @@ class LawParser {
   }
 
   List<ArticleRecord> parse(LawNode law) {
+    law = unwrapLaw(law);
     final lawBody = law.tag == 'LawBody' ? law : law.firstChild('LawBody');
     if (lawBody == null) return const [];
 

@@ -1,7 +1,18 @@
 # zeibun 設計書 — 税制法令検索アプリ（Flutter × e-Gov 法令API v2）
 
-- 状態: ドラフト v0.3（2026-09-23）
-- 関連: [e-Gov 法令API v2 調査メモ](./egov-law-api-v2.md)、[公式 OpenAPI 仕様 v2.1.138](./lawapi-v2.yaml)、[Phase 0 スパイク](../spike/README.md)
+- 状態: ドラフト v0.4（2026-09-23）— Phase 0 の実 API 計測を反映
+- 関連: [e-Gov 法令API v2 調査メモ](./egov-law-api-v2.md)、[公式 OpenAPI 仕様 v2.1.139](./lawapi-v2.yaml)、[Phase 0 スパイク](../spike/README.md)
+
+### v0.3 からの変更点（Phase 0 実測による）
+
+| # | 変更 | 根拠（2026-09-23 実測） |
+|---|---|---|
+| 1 | 本文の取得を **`/law_data`（XML、gzip）** に変更。`/law_file` は使わない | `/law_file` は非圧縮で返る（所得税法 16.4MB がそのまま）。`/law_data` は gzip で約 24 分の 1（672KB） |
+| 2 | 本文は既定で **改正法令の附則を除いて取得**（`omit_amendment_suppl_provision=true`）。「改正附則も読む」は法令ごとのオプション | 所得税法は附則を含むと 16.4MB・要素 20 万・Dart デスクトップで decode 1.7 秒・RSS +157MB。除くと 3.7MB・0.4 秒。中位 Android では前者は OOM リスク |
+| 3 | Web を **MVP の対象に含める**（iOS / Android に次ぐ第 3 のターゲット） | `access-control-allow-origin: *` を確認 |
+| 4 | 未施行改正の検知に `current_revision_info.law_revision_id` のみを使う。`current_revision_status` は使わない | 252 件中 13 件で `current_revision_info.current_revision_status` が `PreviousEnforced`（asof 基準で評価される模様）。`law_revision_id` は 252 件すべて asof なしの現行と一致 |
+| 5 | 一覧取得に `repeal_status=None` を付ける | `013` は指定なしだと廃止・失効 35 件を含む 287 件 |
+| 6 | 取得した本文の `revision_info.law_revision_id` が要求したリビジョンと一致することを保存前に検証する（§11 T） | `/law_data` の封筒にメタが付くので無料で検証できる |
 
 ### v0.2 からの変更点
 
@@ -51,7 +62,7 @@ e-Gov の事項別分類は 1 法令 1 分類で、税法は複数の分類に�
 
 1. **起動時**: `/laws` で対象法令の一覧（現行リビジョン ID と次の未施行リビジョン ID）を取り直す。通信は十数リクエスト・数十 KB
 2. **検索**: 法令名・略称で一覧を検索して法令を選ぶ
-3. **閲覧**: その法令の現行リビジョンの本文を `/law_file/xml/{revision_id}` で取得し、パースして表示・キャッシュ。次回以降はリビジョンが同じならローカルから開く
+3. **閲覧**: その法令の現行リビジョンの本文を `/law_data/{revision_id}`（XML、gzip）で取得し、パースして表示・キャッシュ。次回以降はリビジョンが同じならローカルから開く
 
 ```
 ┌──────────────────────── Flutter アプリ ────────────────────────┐
@@ -62,7 +73,7 @@ e-Gov の事項別分類は 1 法令 1 分類で、税法は複数の分類に�
 │                  EgovApiClient    LawDatabase(drift)   LawParser│
 │                  GET /laws        laws / law_revisions (Isolate)│
 │                  GET /law_revisions   articles                  │
-│                  GET /law_file/xml                              │
+│                  GET /law_data (xml)                            │
 └────────────┬───────────────────────────────────────────────────┘
              │ HTTPS (gzip)。認証なし・レート制限ヘッダなし・HTTP キャッシュヘッダなし
              ▼
@@ -71,13 +82,15 @@ e-Gov の事項別分類は 1 法令 1 分類で、税法は複数の分類に�
 
 この構成を選ぶ理由: API が無認証・無料で対象が約 310 法令と小さい。R4 のために端末内キャッシュがどのみち必要。起動時同期は端末内で完結できる。
 
-### 本文の取得形式: XML を正とする
+### 本文の取得形式: `/law_data` の XML を正とする
 
-`/law_file/xml` と `/law_file/json` は同じ法令標準XML の表現違いで、要素名も属性も同一。公式仕様は **JSON 形式を「試行版であり仕様変更が発生する場合がある」と明記**している。サーバを持たない本アプリでは JSON の変更がそのままアプリ障害になるため、XML を取得形式にする。
+XML と JSON は同じ法令標準XML の表現違いで、要素名も属性も同一。公式仕様は **JSON 形式を「試行版であり仕様変更が発生する場合がある」と明記**している。サーバを持たない本アプリでは JSON の変更がそのままアプリ障害になるため、XML を取得形式にする。
 
-- アプリ内で XML を `LawNode {tag, attr, children}` のツリー（JSON と同じ形）に変換し、パーサはこのツリーだけを入力にする。スパイクで XML 由来と JSON 由来のツリーが同一になることを確認済み
-- 巨大法令（租税特別措置法クラス、XML 最大 17MB）は `xml` パッケージのイベントストリームで条単位に読み、`json.decode` のような全体展開を避けられる。Phase 0 の計測で必要と分かった時点で切り替える
-- JSON は `LawNode.fromJson` として残し、実験用途に限る
+- エンドポイントは `/law_data/{revision_id}?response_format=xml&law_full_text_format=xml`。`/law_file` は gzip されず所得税法で 16MB がそのまま流れるのに対し、`/law_data` は gzip で 672KB。封筒（`law_data_response`）の `revision_info` で取得したリビジョンを検証できる利点もある
+- 既定では `omit_amendment_suppl_provision=true` を付け、改正法令の附則（各改正法の経過措置）を除いた本文を取る。所得税法で 16.4MB → 3.8MB、租税特別措置法で 14.5MB → 6.4MB。法令ごとに「改正附則も読む」を選ぶと全文を取り直す（§4.5）
+- アプリ内で XML を `LawNode {tag, attr, children}` のツリー（JSON と同じ形）に変換し、パーサはこのツリーだけを入力にする。スパイクで XML 由来と JSON 由来、`/law_file` 由来と `/law_data` 由来のツリーが同一になることを確認済み
+- 全文（改正附則込み）の所得税法は要素 20 万・Dart デスクトップで decode 1.7 秒・RSS +157MB。全文を扱うときは `xml` パッケージのイベントストリームで条単位に読み、メモリを条 1 つ分に抑える実装を使う（Phase 1 の後半）
+- JSON は `LawNode.fromJson` として残し、実験用途に限る。2.1.139 で追加された `json_format=light` は属性が落ちる（`Article@Num` が無い）ので使わない
 
 ### 検討したが採らない案
 
@@ -102,33 +115,37 @@ e-Gov の事項別分類は 1 法令 1 分類で、税法は複数の分類に�
 起動
  ├ DB open → 画面表示（前回同期済みデータ）
  └ SyncService.runOnLaunch()
-     1. 一覧取得（すべて asof=2099-12-31 を付ける。1 行に
+     1. 一覧取得（すべて asof=2099-12-31 と repeal_status=None を付ける。1 行に
         revision_info = その時点で最新（未施行を含む）の履歴、
         current_revision_info = 現時点の現行履歴 が入る）
-          GET /laws?category_cd=013&asof=2099-12-31&limit=1000      … 国税（252 件）
-          GET /laws?category_cd=036&asof=2099-12-31&limit=1000      … 地方財政（題名で絞る）
-          GET /laws?law_id=<ID>&asof=2099-12-31                      … 明示指定 12 件（1 件ずつ）
-        count == limit なら next_offset で続きを取る
+          GET /laws?category_cd=013&asof=2099-12-31&repeal_status=None&limit=1000  … 国税 252 件、gzip 39.5KB
+          GET /laws?category_cd=036&asof=2099-12-31&repeal_status=None&limit=1000  … 地方財政 120 件、18KB（題名で絞る）
+          GET /laws?law_id=<ID>&asof=2099-12-31                                    … 明示指定 12 件（1 件ずつ、各 0.6KB）
+        count == limit なら next_offset で続きを取る。合計 14 リクエスト・約 70KB・5 req/s で 3 秒
      2. スコープ判定（§2）→ 対象法令リスト
-     3. ローカル laws と突合
+     3. ローカル laws と突合（比較には law_revision_id と updated だけを使う。
+        current_revision_info.current_revision_status は asof 基準で評価されるため使わない）
         - 未登録                                         → NEW
         - current_revision_info.law_revision_id が違う  → REVISED（改正の施行 / 施行日到来）
         - law_revision_id 同じ・updated が違う           → CORRECTED（訂正・再登録）
-        - revision_info（asof 側）が現行と違う           → 未施行改正あり（next_revision_id を保存）
+        - revision_info.law_revision_id が現行と違う     → 未施行改正あり（実測 252 件中 55 件）
         - ローカルにあるが一覧に無い                      → MISSING（削除せずフラグ）
-     4. laws を更新（current_revision_id / catalog_updated / next_revision_id / next_enforced_at）
+     4. laws を更新（current_revision_id / catalog_updated / has_pending_amendment）
         本文キャッシュ（body_revision_id）は残す → 一覧側と食い違えば「要更新」
      5. 先読み対象（§4.4）のうち REVISED / CORRECTED のものは本文を取り直す（並列 3、5 req/s）
-     6. sync_runs に記録。UI に「最終同期 09:12 / 改正あり 3 件 / 施行予定 5 件」
+     6. sync_runs に記録。UI に「最終同期 09:12 / 改正あり 3 件 / 施行予定あり 55 件」
 
 法令を開いたとき（LawRepository.openLaw(lawId)）
      a. current_revision_id == body_revision_id → キャッシュから表示（通信なし）
-     b. 違う（または未取得）→ GET /law_file/xml/{current_revision_id}
-        - オンライン: 取得 → Isolate でパース → 1 トランザクションで articles を差し替え →
-          body_revision_id 更新 → 表示
+     b. 違う（または未取得）→ GET /law_data/{current_revision_id}?response_format=xml
+           &law_full_text_format=xml&omit_amendment_suppl_provision=true
+        - オンライン: 取得 → 封筒の revision_info.law_revision_id を検証 → Isolate でパース →
+          1 トランザクションで articles を差し替え → body_revision_id 更新 → 表示
         - オフライン: 古いキャッシュがあれば「○月○日時点の内容です（改正あり）」と注記して表示。
           無ければエラー表示
-     c. 改正履歴タブを開いたとき GET /law_revisions/{law_id} を取り law_revisions を差し替える
+     c. 改正履歴タブを開いたとき GET /law_revisions/{law_id} を取り law_revisions を差し替える。
+        「次に施行される改正」の日付はここから出す（asof 遠未来の revision_info は最も遠い
+        施行日のものになるため。租税特別措置法なら 2030-01-01 施行分）
 ```
 
 `current_revision_info` が返らない場合（仕様変更時の保険）は、`asof` 無しの一覧をもう 1 回取って現行を得る。
@@ -145,10 +162,13 @@ e-Gov の事項別分類は 1 法令 1 分類で、税法は複数の分類に�
 
 ### 4.5 本文取得の手順（共通）
 
-1. `GET /law_file/xml/{revision_id}`（gzip、タイムアウト 30 秒、5xx は指数バックオフで 3 回、受信上限 64MB）
-2. `Isolate.run` で XML → `LawNode` → 条レコード（§7）
-3. 1 トランザクションで該当法令の `articles` を全削除 → 挿入、`laws.body_revision_id` / `body_synced_at` を更新
-4. 失敗時は何も書かない（古いキャッシュが残る）
+1. `GET /law_data/{revision_id}?response_format=xml&law_full_text_format=xml&omit_amendment_suppl_provision=true`（gzip、タイムアウト 30 秒、5xx は指数バックオフで 3 回、展開後の受信上限 64MB）。法令の「改正附則も読む」が ON のときは `omit_amendment_suppl_provision` を付けない
+2. 封筒の `revision_info.law_revision_id` が要求した ID と一致しなければ破棄
+3. `Isolate.run` で XML → `LawNode` → 条レコード（§7）。全文（改正附則込み）のときはイベントストリームで条単位に処理
+4. 1 トランザクションで該当法令の `articles` を全削除 → 挿入、`laws.body_revision_id` / `body_synced_at` / `body_includes_amend_suppl` を更新
+5. 失敗時は何も書かない（古いキャッシュが残る）
+
+主要税法の実測（2026-09-23、`/law_data` XML gzip）: 所得税法 wire 222KB（附則除く）/ 672KB（全文）、法人税法 183KB / 310KB、租税特別措置法 667KB / 1.46MB、地方税法 674KB（附則除く）。データセンターからは各 0.5〜1.5 秒。
 
 同期処理と本文取得は Flutter に依存しない純 Dart で書き、`dart run` でデスクトップからも動かせるようにする。スパイクの `EgovClient` / `LawParser` がその原型。
 
@@ -176,10 +196,10 @@ CREATE TABLE laws (
   current_revision_id  TEXT,               -- 現行リビジョン（current_revision_info）
   current_enforced_at  TEXT,
   catalog_updated      TEXT,               -- current_revision_info.updated
-  next_revision_id     TEXT,               -- 未施行改正があるときの次のリビジョン（asof 側）
-  next_enforced_at     TEXT,
+  has_pending_amendment INTEGER NOT NULL DEFAULT 0, -- asof 遠未来の revision_info が現行と違う
   body_revision_id     TEXT,               -- 本文を保存済みのリビジョン（NULL = 未取得）
   body_synced_at       TEXT,
+  body_includes_amend_suppl INTEGER NOT NULL DEFAULT 0, -- 改正法令の附則を含めて取得したか
   missing_since        TEXT
 );
 
@@ -232,7 +252,7 @@ CREATE TABLE app_meta (key TEXT PRIMARY KEY, value TEXT);  -- last_catalog_sync_
 - 条を単位にする。検索ヒットの粒度・閲覧のアンカー・差し替えの単位が条で揃う
 - 表示は `body_json` から描画するので、項・号・表・ルビをテーブル設計に落とし込まない
 - 過去リビジョンの本文は保持しない。時点指定は Phase 3 で API 直接取得
-- 附則は `section='suppl'` で区別し、本文内検索のデフォルトは本則のみ・切替で附則も対象
+- 附則は `section='suppl'` で区別し、本文内検索のデフォルトは本則のみ・切替で附則も対象。既定の取得では改正法令の附則が含まれないので、附則タブに「改正附則を含めて取得する」ボタンを置く（所得税法で附則レコード 39 → 1,074 件）
 
 ## 6. 検索設計（R2）
 
@@ -243,13 +263,13 @@ CREATE TABLE app_meta (key TEXT PRIMARY KEY, value TEXT);  -- last_catalog_sync_
 | （閲覧画面内で）`損金` | 本文内検索 | MVP | 開いている法令の `articles.plain_text` に LIKE（NFKC 正規化済み）。件数・前後移動・ハイライト |
 | `役員給与 損金` | 横断全文検索 | Phase 2 | FTS5 trigram、AND 結合、`snippet()`。3 文字未満は LIKE にフォールバック。ユーザー入力は各トークンをダブルクォートで囲んで MATCH 式に渡す（演算子として解釈させない） |
 
-Phase 2 の索引は本文の 2〜3 倍になり得る。附則を索引から外す、`/law_data` の `omit_amendment_suppl_provision=true` で改正法附則を落とした本文を取る、の 2 案で調整する。
+Phase 2 の索引は本文の 2〜3 倍になり得る。既定の取得（改正附則除く）なら `plain_text` は所得税法 38 万字・法人税法 35 万字・地方税法 131 万字で、スコープ全体でも数千万字（数十 MB）に収まる見込み。
 
 ## 7. 本文パース（LawNode → 条文）
 
 入力は `LawNode` ツリー（XML から変換。JSON からも同じ形）。スパイクの `LawParser` / `PlainText` が実装。
 
-1. `Law > LawBody` の直下を走査し、`MainProvision`、各 `SupplProvision`（`AmendLawNum` を保持）、`Appdx*`（別表・別記・様式）をセクションとして扱う。`TOC`・`LawTitle`・`EnactStatement`・`Preamble` はレコード化しない
+1. `/law_data` の封筒（`law_data_response > law_full_text > Law`）なら `Law` を取り出す。`Law > LawBody` の直下を走査し、`MainProvision`、各 `SupplProvision`（`AmendLawNum` を保持）、`Appdx*`（別表・別記・様式）をセクションとして扱う。`TOC`・`LawTitle`・`EnactStatement`・`Preamble` はレコード化しない
 2. `Part / Chapter / Section / Subsection / Division` は `*Title` を積んで `breadcrumb` にする
 3. `Article` ごとに 1 行。`article_title` = `ArticleTitle`、`caption` = `ArticleCaption`、`article_num` = `attr.Num`
 4. `plain_text`: `Sentence` を文書順に連結。`Paragraph` は `ParagraphCaption` を独立行にした上で項番号（`ParagraphNum`。`OldNum="true"` で空なら `attr.Num`）を先頭に。`Item` / `Subitem*` は見出しを先頭に付けて改行区切り。表はセルをタブ、行を改行で区切る。`Rt`（ルビの読み）は除外
@@ -274,7 +294,7 @@ Phase 2 の索引は本文の 2〜3 倍になり得る。附則を索引から�
 
 | 領域 | 選定 | 理由 |
 |---|---|---|
-| フレームワーク | Flutter stable / Dart 3 | iOS / Android を主対象。macOS / Windows も同じコード。Web は条件付き（下記） |
+| フレームワーク | Flutter stable / Dart 3 | iOS / Android を主対象、Web を第 3 のターゲット（下記）。macOS / Windows も同じコード |
 | 状態管理・DI | `riverpod`（`riverpod_generator`） | Repository/Service の注入とテスト差し替え |
 | ルーティング | `go_router` | 条へのディープリンク `/law/:lawId/article/:num` |
 | HTTP | `dio` | gzip、タイムアウト、リトライ、キャンセル。Web でも同じコードが動く |
@@ -285,17 +305,17 @@ Phase 2 の索引は本文の 2〜3 倍になり得る。附則を索引から�
 | テスト | `flutter_test`, `mocktail`, drift の `NativeDatabase.memory()` | |
 | CI | GitHub Actions: `flutter analyze` / `flutter test` / `dart format --set-exit-if-changed` / `dart pub outdated` の定期確認 | |
 
-**Web について**: Flutter Web 自体は動く。分岐点は e-Gov API が `Access-Control-Allow-Origin` を返すか。返せば MVP から Web を含められる（保存先は OPFS。Safari の容量制限があるので Phase 2 の全件先読みは対象外）。返さなければ中継サーバが要り R5 と矛盾するので Web は外す。Phase 0 で `Origin` ヘッダ付きリクエストにより確認する。
+**Web について**: e-Gov API は `access-control-allow-origin: *` を返す（2026-09-23 実測）ので、中継サーバなしで Flutter Web から直接呼べる。MVP から Web を含める。保存先は OPFS（drift の `WasmDatabase`）。Safari の容量制限があるので Phase 2 の全件先読みは Web では対象外。`dart:io` は使わず `dio` と `xml` で共通コードにする。
 
 ## 10. 品質・運用上の設計
 
 - **失敗しても壊れない**: 本文の差し替えは法令単位のトランザクション。失敗した法令は `body_revision_id` が古いまま残り、次に開いたとき再試行
-- **通信量**: 起動時は一覧の数十 KB。法令を開くときにその法令の本文（数百 KB〜十数 MB）。先読み ON の改正日で数 MB
-- **端末容量**: MVP は開いた法令のみで数十 MB 以内。キャッシュ上限（既定 500MB）を超えたら最終閲覧が古い法令から削除（先読み対象・ブックマークは除く）
-- **巨大法令の体感**: 租税特別措置法・同施行令は取得＋パースで数秒の見込み。スケルトン表示、キャッシュがあれば先に古い本文を出してから差し替え
+- **通信量**: 起動時は一覧の約 70KB（14 リクエスト）。法令を開くときにその法令の本文（gzip で 30KB〜700KB。改正附則込みなら最大 1.5MB）。先読み ON の改正日で数 MB
+- **端末容量**: MVP は開いた法令のみで数十 MB 以内（`body_json` gzip は所得税法 0.4MB、地方税法 1.4MB）。キャッシュ上限（既定 500MB）を超えたら最終閲覧が古い法令から削除（先読み対象・ブックマークは除く）
+- **巨大法令の体感**: Dart デスクトップで 所得税法（附則除く 3.7MB）decode 0.4 秒 + パース 0.02 秒、地方税法（6.2MB）0.34 + 0.06 秒、租税特別措置法全文（13.8MB）0.66 + 0.09 秒。中位 Android を 3〜5 倍遅いと見て、既定取得なら 1〜2 秒、全文で数秒。スケルトン表示、キャッシュがあれば先に古い本文を出してから差し替え
 - **スキーマ移行**: drift のマイグレーション。`plain_text` の作り方を変える場合は `app_meta.parser_version` を上げ、ローカルの `body_json` から再生成
 - **出典と免責**: 設定画面と閲覧画面フッタに「出典: e-Gov法令検索（https://laws.e-gov.go.jp/）」と取得日時。初回起動と設定画面に「デジタル庁・e-Gov の公式アプリではない」「表示内容の正確性・最新性を保証しない。正本は官報および e-Gov 法令検索で確認すること」を表示
-- **API 仕様変更への耐性**: 一覧のフィールド欠落は該当項目を NULL にして続行。本文の XML スキーマ変更は未知タグを無視。`/law_file` が 4xx を返す法令は「取得不可」バッジで隔離し、他の法令に影響させない
+- **API 仕様変更への耐性**: 一覧のフィールド欠落は該当項目を NULL にして続行。本文の XML スキーマ変更は未知タグを無視。`/law_data` が 4xx を返す法令は「取得不可」バッジで隔離し、他の法令に影響させない
 
 ## 11. セキュリティ設計（STRIDE）
 
@@ -314,6 +334,7 @@ Phase 2 の索引は本文の 2〜3 倍になり得る。附則を索引から�
 | S | アプリ自体のなりすまし（e-Gov 公式と誤認） | 信頼の誤用 | 「非公式」の明示（§10）。ストアの表示名・アイコンに政府機関のロゴを使わない | MVP |
 | **T**ampering | 通信経路での改ざん | 誤った条文 | TLS。加えてヘッダの `Content-Length` と受信長の不一致・XML パース失敗時は破棄し、古いキャッシュを残す | MVP |
 | T | 取得途中の中断による部分的な本文 | 欠けた条文を表示 | 法令単位のトランザクション（§4.5）。`body_revision_id` は成功時のみ更新 | MVP |
+| T | 要求と違うリビジョンの本文が返る（サーバ側の不整合・キャッシュ事故） | 古い条文を最新として表示 | `/law_data` 封筒の `revision_info.law_revision_id` を要求 ID と照合し、不一致は破棄 | MVP |
 | T | 端末内 DB の改ざん（root/jailbreak 端末） | 本人の端末内のみ | 受容する。他ユーザーへ波及しない。端末所有者以外は到達不能 | — |
 | T | 不正な構造の XML/JSON（想定外のタグ・巨大な属性） | パーサ例外・表示崩れ | 未知タグは無視、例外は法令単位で隔離（§7-6）。フィクスチャによる回帰テスト | MVP |
 | T | e-Gov 側のデータ誤り・訂正 | 誤った条文 | 検知不能。緩和として取得日時・リビジョン・施行日を本文と一緒に常時表示し、「e-Gov で開く」で正本へ誘導。訂正は `updated` で CORRECTED として取り直す | MVP |
@@ -322,7 +343,7 @@ Phase 2 の索引は本文の 2〜3 倍になり得る。附則を索引から�
 | I | 端末バックアップに DB が含まれる | 同上 | 受容する。機密性は低く、バックアップは OS の保護下にある | — |
 | I | `User-Agent` やクエリから個人が識別される | なし | UA はアプリ名とバージョンのみ。端末 ID やユーザー ID を送らない | MVP |
 | I | Web 版: ブラウザストレージが他サイトから読まれる | 同上 | 同一オリジンポリシーで分離される。第三者スクリプトを読み込まない | Web 時 |
-| **D**enial of service | 巨大レスポンス（17MB 級 XML、gzip 爆弾）でメモリ枯渇 | クラッシュ | 受信上限 64MB（展開後）、超えたら中止。XML はストリーム読みに切り替え可能な設計。パースは Isolate。`Isolate` の OOM はアプリ本体を巻き込まない | MVP / Phase 0 で計測 |
+| **D**enial of service | 巨大レスポンス（17MB 級 XML、gzip 爆弾）でメモリ枯渇 | クラッシュ | 既定は改正附則を除いて取得（最大 6.5MB）。展開後の受信上限 64MB、超えたら中止。全文取得はストリーム読み。パースは Isolate | MVP |
 | D | XML 実体展開攻撃（billion laughs）・外部実体（XXE） | メモリ枯渇・ファイル読み出し | `xml` パッケージは DTD の実体を展開せず外部実体を解決しない。念のため `<!DOCTYPE` を含むレスポンスは拒否する | MVP |
 | D | e-Gov API の停止・遅延 | 同期不可 | キャッシュで閲覧を継続。タイムアウト 30 秒。§4.6 のバックオフ | MVP |
 | D | **自分が e-Gov への DoS 源になる**（普及時のアクセス集中、リトライ嵐） | 公共 API に迷惑・遮断される | 5 req/s・並列 3、10 分抑制、失敗時の間隔延長（§4.6）。全件先読みは Wi-Fi 推奨とユーザーの明示操作でのみ実行。CI で「起動時のリクエスト数 ≤ 20」を fake サーバで検証 | MVP |
@@ -344,7 +365,7 @@ Phase 2 の索引は本文の 2〜3 倍になり得る。附則を索引から�
 
 | 対象 | 方法 |
 |---|---|
-| API デコード | `/laws`（`asof` あり・なし）、`/law_revisions`、`/law_file/xml` の固定レスポンスでモデル変換を検証 |
+| API デコード | `/laws`（`asof` あり・なし）、`/law_revisions`、`/law_data`（XML 封筒）の固定レスポンスでモデル変換を検証（実レスポンスは `spike/fixtures/real/`） |
 | パーサ | 公式仕様の例示法令 XML と、実法令（Phase 0 で取得）をフィクスチャに。`OldNum`、枝番条、表、ルビ、附則、`ParagraphCaption` の各ケース（スパイクの `law_parser_test` を移植） |
 | 同期ロジック | fake `EgovApiClient` + in-memory DB で NEW / REVISED / CORRECTED / 未施行あり / MISSING / 途中失敗→再開 / バックオフの段階 |
 | 検索 | 法令名・略称・条番号ジャンプ・本文内検索（NFKC）。Phase 2 で FTS のエスケープ |
@@ -356,16 +377,28 @@ Phase 2 の索引は本文の 2〜3 倍になり得る。附則を索引から�
 
 ### Phase 0: スパイク
 
-| # | 確認事項 | 状態（2026-09-23） |
+| # | 確認事項 | 結果（2026-09-23 実 API） |
 |---|---|---|
-| 1 | `category_cd` の値 | **確定**: 公式表で 国税=`013`、地方財政=`036`。実 API で `013` が 252 件返ることの確認は残り |
-| 2 | `/law_file` / `/law_data` の実レスポンス | 仕様は確定（§4、調査メモ）。主要税法の実 XML を取得しフィクスチャ化するのは実 API 到達後 |
-| 3 | 主要税法 10 件の本文サイズと XML/JSON パース時間・メモリ | **未**。スパイク CLI の `fetch` / `bench`（純 Dart、`spike/`）で計測する。Android 中位機は Dart VM 比 3〜5 倍遅い前提で見積もる |
-| 4 | e-Gov API の CORS（`Access-Control-Allow-Origin`） | **未**。`Origin` ヘッダ付きの `GET /laws` 1 回で確定。Web を対象に含めるかの判断材料 |
-| 5 | `asof=2099-12-31` の一覧で `current_revision_info` が現行を返すこと | 仕様上は返る。実 API で確認して §4.2 を確定 |
+| 1 | `category_cd` の値 | **確定**: `013` が「国税」252 件（`repeal_status=None`）、`036` が「地方財政」120 件、`023` は「国債」 |
+| 2 | `/law_file` / `/law_data` の実レスポンス | **確定**: `/law_file` は非圧縮、`/law_data` は gzip。地方法人税法の両方を `spike/fixtures/real/` に保存し、同一の条レコードになることをテスト済み |
+| 3 | 主要税法の本文サイズと Dart パース時間・メモリ | **確定**（下表）。中位 Android の実機計測は Phase 1 の最初に行う |
+| 4 | e-Gov API の CORS | **確定**: `access-control-allow-origin: *`。Web を MVP に含める |
+| 5 | `asof=2099-12-31` の一覧で `current_revision_info` が現行を返すこと | **確定**: 252 件すべて一致。ただし `current_revision_status` は 13 件で `PreviousEnforced` になるので `law_revision_id` だけを使う |
 | 6 | `sqlite3_flutter_libs` の SQLite で FTS5 trigram が使えるか | Phase 2 の着手時に確認 |
 
-この確認は、`laws.e-gov.go.jp` に到達できる環境で `spike/` の CLI を実行して行う（本セッションの実行環境はネットワークポリシーで拒否されていた）。
+Dart パース計測（Dart 3.13 VM、Linux x86_64、best of 2。`spike/bin/spike.dart bench`）:
+
+| 法令 | 取得 | XML サイズ | 要素数 | XML → LawNode | LawNode → 条 | 条（本則/附則/別表） | plain_text 文字数 | body_json gz | RSS 増 |
+|---|---|---|---|---|---|---|---|---|---|
+| 所得税法 | 全文 | 15.68 MB | 201,027 | 1,733 ms | 124 ms | 302 / 1,074 / 6 | 1,179,864 | 1.14 MB | +157 MB |
+| 所得税法 | 附則除く | 3.66 MB | 43,767 | 410 ms | 20 ms | 302 / 39 / 6 | 382,004 | 0.38 MB | — |
+| 法人税法 | 全文 | 3.07 MB | 23,334 | 183 ms | 29 ms | 262 / 891 / 3 | 603,816 | 0.77 MB | — |
+| 法人税法 | 附則除く | 1.76 MB | 12,099 | 68 ms | 5 ms | 262 / 21 / 3 | 349,231 | 0.33 MB | +17 MB |
+| 租税特別措置法 | 全文 | 13.79 MB | 97,216 | 664 ms | 87 ms | 496 / 3,176 / 0 | 3,206,900 | 3.07 MB | +77 MB |
+| 地方税法 | 附則除く | 6.19 MB | 46,907 | 343 ms | 55 ms | 1,348 / 217 / 0 | 1,314,486 | 1.36 MB | +74 MB |
+| 地方法人税法 | 全文 | 0.27 MB | 2,254 | 10 ms | 0 ms | 58 / 51 / 0 | 51,224 | 0.07 MB | — |
+
+所得税法の全文は要素数が突出しており（附則 1,074 件）、これが「既定では改正附則を除く」（v0.4 変更 2）の根拠。`/law_file/json` は同じ法令で XML の 2.5〜4.4 倍のサイズになる（調査メモ）。
 
 ### Phase 1: MVP
 
@@ -385,8 +418,8 @@ Phase 2 の索引は本文の 2〜3 倍になり得る。附則を索引から�
 
 ## 14. 未確定事項・確認したいこと
 
-1. **対象範囲**: 「国税」分類 ＋ 地方税法まわり ＋ 明示 12 件でよいか。関税関係を含めてよいか
-2. **Web**: CORS が通った場合に Web を MVP に含めるか（含めるなら OPFS と容量制限の扱いが加わる）
-3. **附則の扱い**: MVP の閲覧・本文内検索では全部を対象にする。Phase 2 の索引に含めるかはそのときに決める
+1. **対象範囲**: 「国税」分類 ＋ 地方税法まわり ＋ 明示 12 件でよいか。関税関係を含めてよいか。廃止・失効した税法（国税 35 件）を「参考」として一覧に載せるか
+2. **Web**: MVP に含める前提で進めてよいか（含める場合、OPFS と Safari の容量制限の扱いが加わる）
+3. **改正附則の既定**: 本文は既定で改正法令の附則を除いて取得し、法令ごとに「改正附則も読む」で全文を取り直す設計にした。税務実務では経過措置（改正附則）を参照する場面があるので、主要法令だけ既定を全文にする案もある。どちらにするか
 4. **過去条文の必要性**: 時点指定を v1 に入れるか（設計上は Phase 3）
 5. **横断全文検索の必要性と時期**: Phase 2 で数百 MB 規模の先読みを入れるかどうか

@@ -1,7 +1,22 @@
 # e-Gov 法令API Version 2 調査メモ
 
 zeibun が利用する e-Gov 法令API v2 について、設計判断の根拠となる事実をまとめる。
-「仕様」は公式 OpenAPI 仕様 [`lawapi-v2.yaml` v2.1.138](./lawapi-v2.yaml)（本リポジトリに同梱）の記載、「実測」は公開されている実測記録（末尾の出典）から裏取りした値。「要確認」は実 API で確かめてから確定させるもの。
+「仕様」は公式 OpenAPI 仕様 [`lawapi-v2.yaml` v2.1.139](./lawapi-v2.yaml)（本リポジトリに同梱）の記載、「実測」は 2026-09-23 に本プロジェクトのスパイク（`spike/`）で実 API に対して計測した値、または公開されている実測記録（末尾の出典）から裏取りした値。
+
+### 2026-09-23 の実測で確定した要点
+
+| 項目 | 結果 |
+|---|---|
+| `category_cd=013` | 「国税」を返す。`repeal_status=None` で 252 件、指定なしだと廃止・失効を含め 287 件（LossOfEffectiveness 31 / Repeal 3 / Expire 1）。`023` は「国債」 |
+| `category_cd=036` | 「地方財政」120 件（`repeal_status=None`）。題名に「税」を含むもの 46 件 |
+| `asof=2099-12-31` | 全行に `current_revision_info` が付き、その `law_revision_id` は `asof` なしの一覧の現行と 252 件すべて一致。`revision_info` 側が現行と異なる（= 未施行改正あり）法令は 55 件。**ただし `current_revision_info.current_revision_status` は 13 件で `PreviousEnforced` になる**（asof 基準で評価されている模様）ので、判定には `law_revision_id` の比較だけを使う |
+| `law_id=<ID>` | 1 件だけ返る（`total_count: 1`）。明示指定は 1 件 1 リクエスト |
+| CORS | `/laws` に `Origin` ヘッダを付けると **`access-control-allow-origin: *`** が返る（CloudFront 配信）。Flutter Web から直接呼べる |
+| `/law_file` の圧縮 | **gzip されない**（`content-type: application/octet-stream`、`content-disposition: attachment`、`content-encoding` なし）。所得税法 XML は 16.4MB がそのまま流れる |
+| `/law_data` の圧縮 | **gzip が効く**。同じ所得税法 XML が wire 672KB（約 24 分の 1）。本文取得はこちらを使う |
+| 本文サイズ | 調査メモ v0.1 の目安（数百 KB〜十数 MB）より大きい。下記「本文」の表を参照 |
+| 一覧の通信量 | `013` asof 付き 39.5KB / `036` 18KB（gzip）。起動時同期の一覧は合計 60KB 程度 + 明示 ID 分 12 × 0.6KB |
+| 仕様書の版 | 2.1.139（ミラーで読んだ 2.1.138 からの差分は `/law_data` の `json_format=light` 追加と `order` の説明文のみ） |
 
 - ベース URL: `https://laws.e-gov.go.jp/api/2`
 - 認証: 不要（API キーなし、HTTPS）
@@ -16,7 +31,7 @@ zeibun が利用する e-Gov 法令API v2 について、設計判断の根拠�
 |---|---|---|
 | `GET /laws` | 法令一覧 | `law_id`（部分一致）, `law_num`（部分一致）, `law_num_era/num/type/year`, `law_title`（法令名または略称の部分一致）, `law_title_kana`, `law_type`（複数可）, `amendment_law_id`, `asof`, `category_cd`（複数可）, `mission`, `omit_current_revision_info`, `promulgation_date_from/to`, `repeal_status`（複数可）, `limit`（既定 100）, `offset`, `order`, `response_format` |
 | `GET /law_revisions/{law_id_or_num}` | 1 法令の改正履歴（新しい順） | `law_title`（`/…/` で正規表現）, `amendment_date_from/to`, `amendment_law_id/num/title`, `amendment_promulgate_date_from/to`, `amendment_type`, `category_cd`, `current_revision_status`, `mission`, `remain_in_force`, `repeal_date_from/to`, `repeal_status`, `updated_from/to`, `response_format` |
-| `GET /law_data/{law_id_or_num_or_revision_id}` | 本文＋メタ（`attached_files_info`, `law_info`, `revision_info`, `law_full_text`） | `law_full_text_format`（json/xml）, `asof`（履歴 ID 指定時は無視）, `elm`, `omit_amendment_suppl_provision`, `include_attached_file_content`, `response_format` |
+| `GET /law_data/{law_id_or_num_or_revision_id}` | 本文＋メタ（`attached_files_info`, `law_info`, `revision_info`, `law_full_text`） | `law_full_text_format`（json/xml）, `json_format`（`full` / `light`、2.1.139 で追加）, `asof`（履歴 ID 指定時は無視）, `elm`, `omit_amendment_suppl_provision`, `include_attached_file_content`, `response_format` |
 | `GET /law_file/{file_type}/{law_id_or_num_or_revision_id}` | 本文ファイル | `file_type` = `xml` / `json` / `html` / `rtf` / `docx`。クエリ `asof` |
 | `GET /keyword` | 全法令の全文検索 | `keyword`（必須。`*` `?` ワイルドカード、AND/OR/NOT）, `law_num*`, `law_type`, `asof`, `category_cd`, `promulgation_date_from/to`, `limit`（既定 100・上限 1000、`sentences` の `position` 数の総和）, `offset`, `order`, `sentences_limit`, `sentence_text_size`（既定 100）, `highlight_tag`（既定 `span`）, `response_format` |
 | `GET /attachment/{law_revision_id}` | 添付ファイル（jpg / pdf） | `src`（`Fig@src` の値。省略時は zip 一括） |
@@ -30,7 +45,7 @@ zeibun が利用する e-Gov 法令API v2 について、設計判断の根拠�
 ### 仕様の要点
 
 - `laws[]` の各行は `law_info`（履歴に依存しない）、`revision_info`（`asof` 時点で最新の履歴）、`current_revision_info`（`asof` に関係なく現時点の現行履歴。`omit_current_revision_info=true` で省略）
-- `asof=YYYY-MM-DD` は「指定時点以前で最新の改正履歴」。未来日を指定すると未施行の履歴が `revision_info` に入る → **`asof=2099-12-31` の 1 回で「現行」と「次の未施行」が同時に取れる**（設計書 §4.2。実 API で要確認）
+- `asof=YYYY-MM-DD` は「指定時点以前で最新の改正履歴」。未来日を指定すると未施行の履歴が `revision_info` に入る → **`asof=2099-12-31` の 1 回で「現行」（`current_revision_info`）と「最後に登録された未施行」（`revision_info`）が同時に取れる**（2026-09-23 に 252 件で確認。設計書 §4.2）。複数の未施行改正がある法令では `revision_info` は最も遠い施行日のもの（例: 租税特別措置法は 2030-01-01 施行分）になるので、「次に施行される改正」の日付は `/law_revisions` で取る
 - レスポンスは `total_count`（条件一致の全件数）, `count`, `next_offset`（末尾なら null）, `laws[]`
 - `law_id` は**部分一致で単一指定**。複数 ID をカンマで並べる指定は無い
 - `order` は `+law_info.law_id,-revision_info.amendment_promulgate_date` の形式。既定 `law_info.law_id`
@@ -107,13 +122,51 @@ v0.1 の推定（国税=023 など）は誤りだった。公式表は次のと�
 - `current_revision_status=UnEnforced` または `amendment_enforcement_date > today` が未施行改正
 - 履歴は 2016 年頃以降のものだけが提供される（実測）
 
-## 本文: `GET /law_file/xml/{revision_id}` と `GET /law_data/{id}`
+## 本文: `GET /law_data/{id}` と `GET /law_file/xml/{revision_id}`
 
-- `/law_file/xml` は `Law` 要素だけの XML を `Content-Disposition: attachment` で返す。`/law_file/json` は同じ構造の `{tag, attr, children}`（試行版）
-- `/law_data` はメタ付き。`elm`（例 `MainProvision-Article_1`、`MainProvision-Paragraph[1]`）で一部だけ取得可。`omit_amendment_suppl_provision=true` で改正法令の附則を除ける。`include_attached_file_content=true` で添付ファイルの zip（Base64）が付く
-- サイズ目安（実測）: 労働基準法 XML 398KB / JSON 420KB / 0.2 秒。全法令中の最大 XML は約 17MB/件
+- `/law_file/xml` は `Law` 要素だけの XML を `Content-Disposition: attachment`、`application/octet-stream` で返す。**gzip されない**。`/law_file/json` は同じ構造の `{tag, attr, children}`（試行版）で、インデント付きのため XML の 2.5〜4.4 倍のサイズ
+- `/law_data` は `law_data_response > (attached_files_info, law_info, revision_info, law_full_text > Law)` の封筒付き。**gzip が効く**（約 24 分の 1）。`elm`（例 `MainProvision-Article_1`）で一部だけ取得可。`omit_amendment_suppl_provision=true` で改正法令の附則を除ける（所得税法 16.4MB → 3.8MB、租税特別措置法 14.5MB → 6.4MB）。`include_attached_file_content=true` で添付ファイルの zip（Base64）が付く
+- `json_format=light`（2.1.139）は「パースに最適化された簡易版」だが、属性は `AmendLawNum`・`Extract`・`Paragraph@Num` しか残らず（`Article@Num` が落ちる）、ルビ等のインライン要素はテキストにタグ文字列として埋め込まれる。本アプリの正本には使わない
 - 廃止・失効法令でも 200 で本文が返る（実測）
 - 仕様書の注意: 本文が大きい場合 Swagger UI ではエラーになることがある
+
+### 主要税法の本文サイズ（2026-09-23 実測、現行リビジョン）
+
+| 法令 | `/law_file/xml` raw | `/law_file/json` raw | `/law_data` xml gzip wire | 同 `omit_amendment_suppl_provision` raw / wire |
+|---|---|---|---|---|
+| 所得税法 | 16.44 MB | 72.50 MB | 672 KB | 3.84 MB / 222 KB |
+| 所得税法施行令 | 3.64 MB | 10.37 MB | | |
+| 法人税法 | 3.22 MB | 9.10 MB | 310 KB | 1.84 MB / 183 KB |
+| 法人税法施行令 | 6.06 MB | 17.30 MB | | |
+| 消費税法 | 1.28 MB | 3.53 MB | | |
+| 相続税法 | 0.83 MB | 2.26 MB | | |
+| 租税特別措置法 | 14.45 MB | 36.06 MB | 1.46 MB | 6.36 MB / 667 KB |
+| 租税特別措置法施行令 | 13.84 MB | 36.87 MB | | |
+| 国税通則法 | 0.93 MB | 2.85 MB | | |
+| 地方税法 | 12.15 MB | 34.17 MB | | 6.49 MB / 674 KB |
+| 地方法人税法 | 0.28 MB | 0.80 MB | 28 KB | |
+
+`/law_file` の非圧縮ダウンロードはデータセンターからでも 1〜2.6 秒。モバイル回線では所得税法クラスで数十秒になり得るので、本文取得は `/law_data`（gzip）を使う。
+
+### XML と JSON のパース比較（Dart 3.13 VM、Linux x86_64、`spike bench`、best of 2）
+
+同じ法令の XML と JSON から作った `LawNode` ツリーは要素数・条数・`plain_text` の文字数まで一致した（`/law_file/xml` と `/law_data` の XML も同様）。
+
+| 法令 | 形式 | サイズ | 要素数 | → LawNode | → 条レコード | 条（本則/附則/別表） |
+|---|---|---|---|---|---|---|
+| 所得税法 | xml | 15.68 MB | 200,993 | 2,235 ms | 112 ms | 302 / 1,074 / 6 |
+| 所得税法 | json | 69.14 MB | 200,993 | 1,682 ms | 150 ms | 同上 |
+| 租税特別措置法 | xml | 13.78 MB | 97,182 | 917 ms | 109 ms | 496 / 3,176 / 0 |
+| 租税特別措置法 | json | 34.39 MB | 97,182 | 798 ms | 71 ms | 同上 |
+| 地方税法 | xml | 11.59 MB | 95,933 | 781 ms | 130 ms | 1,348 / 2,822 / 0 |
+| 地方税法 | json | 32.59 MB | 95,933 | 556 ms | 67 ms | 同上 |
+| 法人税法 | xml | 3.07 MB | 23,300 | 159 ms | 11 ms | 262 / 891 / 3 |
+| 法人税法 | json | 8.68 MB | 23,300 | 122 ms | 10 ms | 同上 |
+| 消費税法 | xml | 1.22 MB | 10,281 | 54 ms | 3 ms | 85 / 434 / 5 |
+| 国税通則法 | xml | 0.89 MB | 8,248 | 41 ms | 4 ms | 194 / 235 / 0 |
+| 地方法人税法 | xml | 0.27 MB | 2,220 | 11 ms | 1 ms | 58 / 51 / 0 |
+
+JSON の `json.decode` は XML の DOM パースより 2〜3 割速いが、転送量が 2.5〜4.4 倍で `/law_file` は非圧縮。gzip の効く `/law_data` の XML を採用する判断は変わらない。
 
 ### 本文のノード形式
 
@@ -148,7 +201,8 @@ v0.1 の推定（国税=023 など）は誤りだった。公式表は次のと�
 | `asof` の未来日 | `asof=2099-12-31` は 200 で総件数同じ。現在と `revision_id` が異なる法令は 842 件（未施行改正を持つ法令の一覧として使える） |
 | ページング | `limit=5000` は受理。`offset` が総件数を超えると `{"total_count":0,"count":0,"laws":[]}` |
 | gzip | 1000 件 1.96MB → 137KB |
-| CORS | **要確認**。`Origin` ヘッダ付きで `Access-Control-Allow-Origin` が返るか未計測（Web 対応の判断材料） |
+| CORS | `Origin` ヘッダ付きの `/laws` に `access-control-allow-origin: *` が返る（2026-09-23 実測）。Flutter Web から直接呼べる |
+| `/law_file` と `/law_data` の圧縮 | `/law_file` は非圧縮、`/law_data` は gzip（2026-09-23 実測） |
 
 ## 税制の対象範囲（実カタログ 2026-09、`spike/fixtures/catalog_tax_snapshot.json`）
 
@@ -165,7 +219,8 @@ API の `abbrev` に入っている税法の略称: 租特法・租特法施行�
 
 ## 出典
 
-- 法令API Version 2 OpenAPI 仕様 `lawapi-v2.yaml` v2.1.138（https://laws.e-gov.go.jp/api/2/swagger-ui/ 。本リポジトリでは `docs/lawapi-v2.yaml` に同梱。取得は ngs/go-jplaw-api-v2 に同梱のコピー経由）
+- 法令API Version 2 OpenAPI 仕様 `lawapi-v2.yaml` v2.1.139（https://laws.e-gov.go.jp/api/2/swagger-ui/lawapi-v2.yaml 。本リポジトリでは `docs/lawapi-v2.yaml` に同梱）
+- 本プロジェクトのスパイクによる実測（2026-09-23）: `spike/fixtures/real/` と設計書 §13
 - デジタル庁「法令API Version2リリースのお知らせ」(2025-03-14)
 - okamyuji/egov-law-sync `README.md`, `docs/measurements.md`（2026-09-11 の HTTP 実測記録）: https://github.com/okamyuji/egov-law-sync
 - yno9/legalize-jp-fetcher `src/datasource/EGovDataSource.ts`, `src/parseJSON.ts`, `data/laws.json`（レスポンス型と実カタログ）: https://github.com/yno9/legalize-jp-fetcher
