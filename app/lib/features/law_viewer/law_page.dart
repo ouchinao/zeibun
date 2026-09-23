@@ -8,6 +8,7 @@ import '../../providers.dart';
 import '../bookmarks/bookmark_law_button.dart';
 import '../bookmarks/bookmark_providers.dart';
 import 'article_menu.dart';
+import 'in_text_search.dart';
 import 'law_body_controller.dart';
 import 'law_text.dart';
 import 'main_tab.dart';
@@ -39,33 +40,25 @@ class LawPage extends ConsumerStatefulWidget {
   ConsumerState<LawPage> createState() => _LawPageState();
 }
 
-/// 本文内検索の状態。閉じているときは null にして、開閉フラグと語・一致位置を
-/// 別々の bool と変数で持たない。
-class _TextSearch {
-  const _TextSearch(
-      {this.terms = const [], this.matches = const [], this.cursor = 0});
-
-  final List<String> terms;
-  final List<int> matches;
-  final int cursor;
-
-  int? get currentMatch => matches.isEmpty ? null : matches[cursor];
-  String? get counter => matches.isEmpty
-      ? (terms.isEmpty ? null : '0 件')
-      : '${cursor + 1}/${matches.length}';
-
-  _TextSearch step(int delta) => _TextSearch(
-      terms: terms,
-      matches: matches,
-      cursor: (cursor + delta) % matches.length);
-}
-
 class _LawPageState extends ConsumerState<LawPage>
     with SingleTickerProviderStateMixin {
+  static const _mainTab = 0;
+  static const _supplTab = 1;
+
   late final TabController _tabs;
   final _mainScroll = ItemScrollController();
   final _searchController = TextEditingController();
-  _TextSearch? _search;
+  InTextSearch? _search;
+
+  /// 別の状態として持たず現在の一致から導く。持つと、検索を閉じたときや
+  /// 本則側へ戻ったときに消し忘れる。
+  SupplFocus? get _supplFocus => switch (_search?.current) {
+        (part: TextPart.suppl, :final group, :final index) => (
+            group: group,
+            article: index
+          ),
+        _ => null,
+      };
 
   @override
   void initState() {
@@ -74,9 +67,9 @@ class _LawPageState extends ConsumerState<LawPage>
         length: 3,
         vsync: this,
         initialIndex: switch (widget.initialTab) {
-          'suppl' => 1,
+          'suppl' => _supplTab,
           'revisions' => 2,
-          _ => 0,
+          _ => _mainTab,
         });
   }
 
@@ -96,6 +89,23 @@ class _LawPageState extends ConsumerState<LawPage>
           index: index, duration: const Duration(milliseconds: 250));
     } else {
       _mainScroll.jumpTo(index: index);
+    }
+  }
+
+  /// 本文タブへ切り替えた直後にそのままスクロールしないのは、本則のリストが
+  /// 本文タブの表示まで組み立てられず、同じフレームでは動かせないため。
+  void _reveal(TextHit hit) {
+    switch (hit.part) {
+      case TextPart.main:
+        if (_tabs.index == _mainTab) {
+          _scrollTo(hit.index);
+        } else {
+          _tabs.animateTo(_mainTab);
+          WidgetsBinding.instance
+              .addPostFrameCallback((_) => _scrollTo(hit.index));
+        }
+      case TextPart.suppl:
+        _tabs.animateTo(_supplTab);
     }
   }
 
@@ -136,7 +146,7 @@ class _LawPageState extends ConsumerState<LawPage>
   void _toggleSearch() {
     setState(() {
       if (_search == null) {
-        _search = const _TextSearch();
+        _search = const InTextSearch();
       } else {
         _search = null;
         _searchController.clear();
@@ -144,21 +154,12 @@ class _LawPageState extends ConsumerState<LawPage>
     });
   }
 
-  /// 現在位置を先頭の一致に固定しないのは、検索結果から条を指定して開いたとき、
-  /// その条より前の一致へ飛び戻らないため（[startAt] 以降で最初の一致にする）。
-  void _runSearch(String q, List<ArticleItem> main,
-      {bool scroll = true, int startAt = 0}) {
-    final terms = splitSearchTerms(q);
-    final matches = [
-      if (terms.isNotEmpty)
-        for (var i = 0; i < main.length; i++)
-          if (terms.every(normalizeForMatch(main[i].plainText).contains)) i,
-    ];
-    var cursor = matches.indexWhere((i) => i >= startAt);
-    if (cursor < 0) cursor = 0;
-    setState(() =>
-        _search = _TextSearch(terms: terms, matches: matches, cursor: cursor));
-    if (scroll && matches.isNotEmpty) _scrollTo(matches[cursor]);
+  void _runSearch(LawText text, String q,
+      {required bool includeSuppl, bool scroll = true, int startAt = 0}) {
+    final next =
+        InTextSearch.run(text, q, includeSuppl: includeSuppl, startAt: startAt);
+    setState(() => _search = next);
+    if (scroll && next.current != null) _reveal(next.current!);
   }
 
   /// ここでスクロールしないのは、条番号ジャンプと合わせて 2 回動くと目が迷うため。
@@ -169,16 +170,17 @@ class _LawPageState extends ConsumerState<LawPage>
       if (!mounted) return;
       _searchController.text = q;
       final at = text.main.indexWhere((a) => a.articleNum == widget.articleNum);
-      _runSearch(q, text.main, scroll: false, startAt: at < 0 ? 0 : at);
+      _runSearch(text, q,
+          includeSuppl: false, scroll: false, startAt: at < 0 ? 0 : at);
     });
   }
 
   void _stepMatch(int delta) {
     final s = _search;
-    if (s == null || s.matches.isEmpty) return;
+    if (s == null || s.hits.isEmpty) return;
     final next = s.step(delta);
     setState(() => _search = next);
-    _scrollTo(next.currentMatch!);
+    _reveal(next.current!);
   }
 
   @override
@@ -221,7 +223,17 @@ class _LawPageState extends ConsumerState<LawPage>
               _SearchBar(
                 controller: _searchController,
                 counter: search.counter,
-                onSubmitted: (q) => _runSearch(q, main),
+                includeSuppl: search.includeSuppl,
+                onSubmitted: (q) {
+                  if (text != null) {
+                    _runSearch(text, q, includeSuppl: search.includeSuppl);
+                  }
+                },
+                onIncludeSuppl: (v) {
+                  if (text != null) {
+                    _runSearch(text, _searchController.text, includeSuppl: v);
+                  }
+                },
                 onStep: _stepMatch,
               ),
             TabBar(controller: _tabs, tabs: const [
@@ -250,6 +262,7 @@ class _LawPageState extends ConsumerState<LawPage>
                 groups: text?.supplGroups ?? const [],
                 loading: textAsync.isLoading,
                 highlight: search?.terms ?? const [],
+                focus: _supplFocus,
                 onLoadAmendSuppl: () => ref
                     .read(lawBodyProvider(widget.lawId).notifier)
                     .loadAmendSuppl(),
@@ -264,12 +277,16 @@ class _SearchBar extends StatelessWidget {
   const _SearchBar({
     required this.controller,
     required this.counter,
+    required this.includeSuppl,
     required this.onSubmitted,
+    required this.onIncludeSuppl,
     required this.onStep,
   });
   final TextEditingController controller;
   final String? counter;
+  final bool includeSuppl;
   final ValueChanged<String> onSubmitted;
+  final ValueChanged<bool> onIncludeSuppl;
   final ValueChanged<int> onStep;
 
   @override
@@ -288,6 +305,14 @@ class _SearchBar extends StatelessWidget {
               ),
               onSubmitted: onSubmitted,
             ),
+          ),
+          const SizedBox(width: 6),
+          FilterChip(
+            label: const Text('附則'),
+            tooltip: '附則も検索する',
+            selected: includeSuppl,
+            visualDensity: VisualDensity.compact,
+            onSelected: onIncludeSuppl,
           ),
           IconButton(
               icon: const Icon(Icons.keyboard_arrow_up),
