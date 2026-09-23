@@ -186,15 +186,15 @@ class _LawPageState extends ConsumerState<LawPage>
   @override
   Widget build(BuildContext context) {
     ref.listen(lawBodyProvider(widget.lawId), (prev, next) {
-      final text = next.valueOrNull;
-      if (prev?.valueOrNull == null && text != null) {
+      final text = next.value;
+      if (prev?.value == null && text != null) {
         _jumpToInitialArticle(text);
         _applyInitialQuery(text);
       }
     });
-    final law = ref.watch(lawStreamProvider(widget.lawId)).valueOrNull;
+    final law = ref.watch(lawStreamProvider(widget.lawId)).value;
     final textAsync = ref.watch(lawBodyProvider(widget.lawId));
-    final text = textAsync.valueOrNull;
+    final text = textAsync.value;
     final main = text?.main ?? const <ArticleItem>[];
     final search = _search;
 

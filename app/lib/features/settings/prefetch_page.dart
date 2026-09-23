@@ -41,37 +41,35 @@ class PrefetchPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final remaining = ref.watch(prefetchTargetCountProvider);
+    final state = ref.watch(prefetchStateProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('全法令を端末に保存')),
-      body: ValueListenableBuilder(
-        valueListenable: ref.watch(prefetchStateListenableProvider),
-        builder: (context, state, _) => ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Text(
-              '対象の税制法令すべての本文を端末に保存します。保存した法令はオフラインで開け、'
-              '横断全文検索の対象になります。通信量は数十〜数百 MB になるため Wi-Fi をおすすめします。'
-              '途中で中断しても、保存できた法令はそのまま残ります。',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            switch (state) {
-              PrefetchIdle() => _StartCard(
-                  remaining: remaining,
-                  onStart: () => _start(context, ref),
-                ),
-              PrefetchRunning() => _RunningCard(
-                  state,
-                  onCancel: ref.read(prefetchServiceProvider).cancel,
-                ),
-              PrefetchFinished() => _FinishedCard(
-                  state,
-                  remaining: remaining,
-                  onStart: () => _start(context, ref),
-                ),
-            },
-          ],
-        ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(
+            '対象の税制法令すべての本文を端末に保存します。保存した法令はオフラインで開け、'
+            '横断全文検索の対象になります。通信量は数十〜数百 MB になるため Wi-Fi をおすすめします。'
+            '途中で中断しても、保存できた法令はそのまま残ります。',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 16),
+          switch (state) {
+            PrefetchIdle() => _StartCard(
+                remaining: remaining,
+                onStart: () => _start(context, ref),
+              ),
+            PrefetchRunning() => _RunningCard(
+                state,
+                onCancel: ref.read(prefetchServiceProvider).cancel,
+              ),
+            PrefetchFinished() => _FinishedCard(
+                state,
+                remaining: remaining,
+                onStart: () => _start(context, ref),
+              ),
+          },
+        ],
       ),
     );
   }
@@ -88,7 +86,7 @@ class _StartCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final n = remaining.valueOrNull;
+    final n = remaining.value;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Text(switch (n) {
         null => '対象を数えています…',

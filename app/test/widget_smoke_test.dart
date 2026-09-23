@@ -45,7 +45,8 @@ void main() {
         egovApiProvider.overrideWithValue(FakeEgovApi()),
         lawsStreamProvider.overrideWith((ref) => Stream.value(laws)),
         bookmarksProvider.overrideWith((ref) => Stream.value(bookmarks)),
-        syncStateListenableProvider.overrideWithValue(sync),
+        syncStateProvider
+            .overrideWith(() => ListenableStateNotifier((_) => sync)),
       ],
       child: const ZeibunApp(runSyncOnLaunch: false),
     );
