@@ -63,6 +63,14 @@ void main() {
     });
   });
 
+  group('splitSearchTerms', () {
+    test('normalizes, splits on any whitespace and drops duplicates', () {
+      expect(splitSearchTerms('役員給与　損金 役員給与'), ['役員給与', '損金']);
+      expect(splitSearchTerms('第２２条　ＡＢＣ'), ['第22条', 'abc']);
+      expect(splitSearchTerms('　 '), isEmpty);
+    });
+  });
+
   group('articleNumDisplay', () {
     test('formats plain and branch numbers', () {
       expect(articleNumDisplay('22'), '第22条');

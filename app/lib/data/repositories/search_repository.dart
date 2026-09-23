@@ -19,11 +19,31 @@ LawAbbrevIndex abbrevIndexFor(Iterable<Law> laws) =>
         if (l.abbrev case final a? when a.isNotEmpty) MapEntry(a, l.title),
     ]);
 
+class FullTextResult {
+  const FullTextResult(this.query, this.hits, this.laws);
+  final FtsQuery query;
+  final List<FullTextHit> hits;
+  final List<LawHitCount> laws;
+}
+
 class SearchRepository {
   SearchRepository({required this.db, required this.abbrevs});
 
   final AppDatabase db;
   final LawAbbrevIndex abbrevs;
+
+  /// 法令別件数を [lawId] で絞らないのは、1 法令に絞った状態でも他の法令の
+  /// 件数が見え、そこからフィルタを切り替えられるようにするため。
+  Future<FullTextResult> searchFullText(String input,
+      {bool includeSuppl = false, String? lawId}) async {
+    final q = FtsQuery.parse(input);
+    if (q.isEmpty) return FullTextResult(q, const [], const []);
+    final (hits, laws) = await (
+      db.searchFullText(q, includeSuppl: includeSuppl, lawId: lawId),
+      db.fullTextLawCounts(q, includeSuppl: includeSuppl),
+    ).wait;
+    return FullTextResult(q, hits, laws);
+  }
 
   /// 入力を解釈して検索する。
   /// 1. 条番号を含めば「法令 + 条」のジャンプ候補

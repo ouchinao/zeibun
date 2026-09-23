@@ -27,7 +27,7 @@ class MainTab extends StatelessWidget {
 
   final Law law;
   final AsyncValue<LawText> text;
-  final String? highlight;
+  final List<String> highlight;
   final ItemScrollController scrollController;
   final void Function(ArticleItem) onLongPress;
   final VoidCallback onRetry;
@@ -189,7 +189,7 @@ class _ArticleCard extends StatelessWidget {
       required this.highlight,
       required this.onLongPress});
   final ArticleItem article;
-  final String? highlight;
+  final List<String> highlight;
   final VoidCallback onLongPress;
 
   @override

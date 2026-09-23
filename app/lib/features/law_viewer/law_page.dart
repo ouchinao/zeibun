@@ -17,14 +17,20 @@ import 'toc_drawer.dart';
 /// 附則を本文と同じリストに並べないのは、所得税法の全文で附則が 1,000 件を超え、
 /// 本則を読む邪魔になるから（改正法令ごとに折りたたむ）。
 class LawPage extends ConsumerStatefulWidget {
-  const LawPage(
-      {super.key, required this.lawId, this.articleNum, this.initialTab});
+  const LawPage({
+    super.key,
+    required this.lawId,
+    this.articleNum,
+    this.initialTab,
+    this.initialQuery,
+  });
 
   final String lawId;
 
   /// 開いたときにスクロールする条（`Article@Num` 形式）。
   final String? articleNum;
   final String? initialTab;
+  final String? initialQuery;
 
   @override
   ConsumerState<LawPage> createState() => _LawPageState();
@@ -34,19 +40,19 @@ class LawPage extends ConsumerStatefulWidget {
 /// 別々の bool と変数で持たない。
 class _TextSearch {
   const _TextSearch(
-      {this.query = '', this.matches = const [], this.cursor = 0});
-  final String query;
+      {this.terms = const [], this.matches = const [], this.cursor = 0});
+
+  final List<String> terms;
   final List<int> matches;
   final int cursor;
 
-  String? get highlight => query.isEmpty ? null : query;
   int? get currentMatch => matches.isEmpty ? null : matches[cursor];
   String? get counter => matches.isEmpty
-      ? (query.isEmpty ? null : '0 件')
+      ? (terms.isEmpty ? null : '0 件')
       : '${cursor + 1}/${matches.length}';
 
   _TextSearch step(int delta) => _TextSearch(
-      query: query,
+      terms: terms,
       matches: matches,
       cursor: (cursor + delta) % matches.length);
 }
@@ -116,15 +122,33 @@ class _LawPageState extends ConsumerState<LawPage>
     });
   }
 
-  void _runSearch(String q, List<ArticleItem> main) {
-    final n = normalizeForSearch(q);
+  /// 現在位置を先頭の一致に固定しないのは、検索結果から条を指定して開いたとき、
+  /// その条より前の一致へ飛び戻らないため（[startAt] 以降で最初の一致にする）。
+  void _runSearch(String q, List<ArticleItem> main,
+      {bool scroll = true, int startAt = 0}) {
+    final terms = splitSearchTerms(q);
     final matches = [
-      if (n.isNotEmpty)
+      if (terms.isNotEmpty)
         for (var i = 0; i < main.length; i++)
-          if (normalizeForMatch(main[i].plainText).contains(n)) i,
+          if (terms.every(normalizeForMatch(main[i].plainText).contains)) i,
     ];
-    setState(() => _search = _TextSearch(query: n, matches: matches));
-    if (matches.isNotEmpty) _scrollTo(matches.first);
+    var cursor = matches.indexWhere((i) => i >= startAt);
+    if (cursor < 0) cursor = 0;
+    setState(() =>
+        _search = _TextSearch(terms: terms, matches: matches, cursor: cursor));
+    if (scroll && matches.isNotEmpty) _scrollTo(matches[cursor]);
+  }
+
+  /// ここでスクロールしないのは、条番号ジャンプと合わせて 2 回動くと目が迷うため。
+  void _applyInitialQuery(LawText text) {
+    final q = widget.initialQuery;
+    if (q == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _searchController.text = q;
+      final at = text.main.indexWhere((a) => a.articleNum == widget.articleNum);
+      _runSearch(q, text.main, scroll: false, startAt: at < 0 ? 0 : at);
+    });
   }
 
   void _stepMatch(int delta) {
@@ -141,6 +165,7 @@ class _LawPageState extends ConsumerState<LawPage>
       final text = next.valueOrNull;
       if (prev?.valueOrNull == null && text != null) {
         _jumpToInitialArticle(text);
+        _applyInitialQuery(text);
       }
     });
     final law = ref.watch(lawStreamProvider(widget.lawId)).valueOrNull;
@@ -191,7 +216,7 @@ class _LawPageState extends ConsumerState<LawPage>
               MainTab(
                 law: law,
                 text: textAsync,
-                highlight: search?.highlight,
+                highlight: search?.terms ?? const [],
                 scrollController: _mainScroll,
                 onLongPress: (a) =>
                     showArticleMenu(context, law: law, article: a),
@@ -202,7 +227,7 @@ class _LawPageState extends ConsumerState<LawPage>
                 law: law,
                 groups: text?.supplGroups ?? const [],
                 loading: textAsync.isLoading,
-                highlight: search?.highlight,
+                highlight: search?.terms ?? const [],
                 onLoadAmendSuppl: () => ref
                     .read(lawBodyProvider(widget.lawId).notifier)
                     .loadAmendSuppl(),

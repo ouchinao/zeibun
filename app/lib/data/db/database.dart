@@ -146,12 +146,87 @@ extension LawFlags on Law {
 
 typedef CatalogEntry = ({LawSummary summary, String scopeReason});
 
+class FullTextHit {
+  const FullTextHit({
+    required this.lawId,
+    required this.lawTitle,
+    required this.section,
+    required this.snippet,
+    this.articleNum,
+    this.articleTitle,
+    this.caption,
+    this.breadcrumb,
+  });
+
+  final String lawId;
+  final String lawTitle;
+  final String section;
+  final String? articleNum;
+  final String? articleTitle;
+  final String? caption;
+  final String? breadcrumb;
+
+  bool get isSuppl => section == 'suppl';
+
+  /// 一致箇所の前後。強調は画面側が語を探して付ける（索引経由と LIKE 経由で
+  /// 抜粋の作り方が違っても、画面の処理を 1 つにするため）。
+  final String snippet;
+}
+
+class LawHitCount {
+  const LawHitCount(this.lawId, this.title, this.count);
+  final String lawId;
+  final String title;
+  final int count;
+}
+
+/// ヒット一覧と法令別件数で WHERE を別々に書かないのは、片方だけ条件が変わると
+/// 件数と一覧が食い違うため。
+class _FullTextFilter {
+  const _FullTextFilter(this.from, this.where, this.args,
+      {required this.usesIndex});
+  final String from;
+  final String where;
+  final List<Variable> args;
+  final bool usesIndex;
+}
+
+_FullTextFilter? _fullTextFilter(FtsQuery q,
+    {required bool includeSuppl, String? lawId}) {
+  final match = q.matchExpression;
+  final like = q.likePatterns;
+  if (match == null && like.isEmpty) return null;
+  final where = <String>[];
+  final args = <Variable>[];
+  if (match != null) {
+    where.add('articles_fts MATCH ?');
+    args.add(Variable(match));
+  }
+  for (final p in like) {
+    where.add('a.plain_text LIKE ?');
+    args.add(Variable(p));
+  }
+  if (!includeSuppl) where.add("a.section != 'suppl'");
+  if (lawId != null) {
+    where.add('a.law_id = ?');
+    args.add(Variable(lawId));
+  }
+  return _FullTextFilter(
+    match == null
+        ? 'articles a'
+        : 'articles_fts JOIN articles a ON a.id = articles_fts.rowid',
+    where.join(' AND '),
+    args,
+    usesIndex: match != null,
+  );
+}
+
 @DriftDatabase(tables: [Laws, LawRevisions, Articles, SyncRuns, AppMeta])
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -163,11 +238,37 @@ class AppDatabase extends _$AppDatabase {
               'CREATE INDEX idx_articles_law_num ON articles(law_id, section, article_num)');
           await customStatement(
               'CREATE INDEX idx_revisions_law ON law_revisions(law_id, enforced_at)');
+          await _createFullTextIndex();
+        },
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await _createFullTextIndex();
+            // 表を作るだけだと v1 で保存した本文が検索に出ないので、既存行を索引化する
+            await customStatement(
+                "INSERT INTO articles_fts(articles_fts) VALUES ('rebuild')");
+          }
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
         },
       );
+
+  /// 外部コンテンツ表にするのは、本文を `articles.plain_text` と二重に持たないため。
+  /// 同期はトリガに任せる。UPDATE のトリガが無いのは、条の行は更新せず
+  /// 法令単位で全削除→全挿入しかしないから（[replaceArticles]）。
+  Future<void> _createFullTextIndex() async {
+    await customStatement(
+        "CREATE VIRTUAL TABLE articles_fts USING fts5(plain_text, caption, article_title, "
+        "content='articles', content_rowid='id', tokenize='trigram')");
+    await customStatement(
+        'CREATE TRIGGER articles_ai AFTER INSERT ON articles BEGIN '
+        'INSERT INTO articles_fts(rowid, plain_text, caption, article_title) '
+        'VALUES (new.id, new.plain_text, new.caption, new.article_title); END');
+    await customStatement(
+        'CREATE TRIGGER articles_ad AFTER DELETE ON articles BEGIN '
+        "INSERT INTO articles_fts(articles_fts, rowid, plain_text, caption, article_title) "
+        "VALUES ('delete', old.id, old.plain_text, old.caption, old.article_title); END");
+  }
 
   // ---------------------------------------------------------------- meta
 
@@ -352,6 +453,72 @@ class AppDatabase extends _$AppDatabase {
           bodyIncludesAmendSuppl: Value(false),
         ));
       });
+
+  // ------------------------------------------------------ full-text search
+
+  /// 短い語しか無いとき索引を使わないのは、trigram が 3 文字未満の語に一致しない
+  /// ため（設計書 §6）。そのとき `snippet()` も使えないので、抜粋は最初の出現位置の
+  /// 前後を `substr` で切り出す。
+  Future<List<FullTextHit>> searchFullText(
+    FtsQuery q, {
+    bool includeSuppl = false,
+    String? lawId,
+    int limit = 50,
+  }) async {
+    final f = _fullTextFilter(q, includeSuppl: includeSuppl, lawId: lawId);
+    if (f == null) return const [];
+    final (snippet, snippetArgs) = f.usesIndex
+        ? ("snippet(articles_fts, 0, '', '', '…', 24)", const <Variable>[])
+        : (
+            'substr(a.plain_text, max(instr(a.plain_text, ?) - 20, 1), 80)',
+            [Variable(q.likeTerms.first)]
+          );
+    final order = f.usesIndex
+        ? 'bm25(articles_fts, 1.0, 3.0, 3.0), a.seq'
+        : 'a.law_id, a.seq';
+    final rows = await customSelect(
+      'SELECT a.law_id, l.title, a.section, a.article_num, a.article_title, '
+      'a.caption, a.breadcrumb, $snippet AS snip '
+      'FROM ${f.from} JOIN laws l ON l.law_id = a.law_id '
+      'WHERE ${f.where} ORDER BY $order LIMIT ?',
+      variables: [...snippetArgs, ...f.args, Variable(limit)],
+      readsFrom: {articles, laws},
+    ).get();
+    return [
+      for (final r in rows)
+        FullTextHit(
+          lawId: r.read<String>('law_id'),
+          lawTitle: r.read<String>('title'),
+          section: r.read<String>('section'),
+          articleNum: r.readNullable<String>('article_num'),
+          articleTitle: r.readNullable<String>('article_title'),
+          caption: r.readNullable<String>('caption'),
+          breadcrumb: r.readNullable<String>('breadcrumb'),
+          snippet: r.read<String>('snip'),
+        ),
+    ];
+  }
+
+  Future<List<LawHitCount>> fullTextLawCounts(
+    FtsQuery q, {
+    bool includeSuppl = false,
+    int limit = 20,
+  }) async {
+    final f = _fullTextFilter(q, includeSuppl: includeSuppl);
+    if (f == null) return const [];
+    final rows = await customSelect(
+      'SELECT a.law_id, l.title, COUNT(*) AS c '
+      'FROM ${f.from} JOIN laws l ON l.law_id = a.law_id '
+      'WHERE ${f.where} GROUP BY a.law_id ORDER BY c DESC, l.title LIMIT ?',
+      variables: [...f.args, Variable(limit)],
+      readsFrom: {articles, laws},
+    ).get();
+    return [
+      for (final r in rows)
+        LawHitCount(r.read<String>('law_id'), r.read<String>('title'),
+            r.read<int>('c')),
+    ];
+  }
 
   // ------------------------------------------------------------ revisions
 

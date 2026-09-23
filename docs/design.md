@@ -1,7 +1,16 @@
 # zeibun 設計書 — 税制法令検索アプリ（Flutter × e-Gov 法令API v2）
 
-- 状態: ドラフト v0.5（2026-09-23）— Phase 0 の実 API 計測を反映し、レビューで未確定事項を決定
+- 状態: ドラフト v0.6（2026-09-23）— Phase 1 実装済み。Phase 2（横断全文検索）を実装に合わせて更新中
 - 関連: [e-Gov 法令API v2 調査メモ](./egov-law-api-v2.md)、[公式 OpenAPI 仕様 v2.1.139](./lawapi-v2.yaml)、[Phase 0 スパイク](../spike/README.md)
+
+### v0.5 からの変更点（Phase 2 の実装に伴う）
+
+| # | 変更 | 根拠 |
+|---|---|---|
+| 1 | FTS5 trigram を **同梱 SQLite で利用可と確認**（§13 Phase 0 項目 6）。`articles_fts` をスキーマ v2 で作成し、v1 からの移行で既存本文を `rebuild` | テスト用 SQLite 3.45.1、Android の sqlite3 3.52.0（`sqlite3_flutter_libs`）、iOS の `sqlite3/fts5` pod のいずれも FTS5 有効。trigram の MATCH・`snippet()`・外部コンテンツ表・LIKE 最適化を確認 |
+| 2 | 横断全文検索の語の扱いを「3 文字以上は MATCH、3 文字未満は同じクエリ内で LIKE」に確定。**すべての語を含む条**が一致（§6） | trigram は 3 文字未満の語にどの行も一致させない。`"役員" AND "損金の額"` のように短い語を MATCH に混ぜると全体が空になるため、短い語だけ LIKE 側へ回す |
+| 3 | 検索結果画面を「法令」「本文」の 2 タブに。本文タブは附則の切替と法令別件数のフィルタを持ち、ヒットは `…/article/{num}?q=語` で開いて本文内検索を同じ語で開く（§8） | 横断検索から条へ着地したとき、どこが一致したかが本文内でも見えるように |
+| 4 | 本文内検索も空白区切りの複数語 AND に統一（語の分割は `splitSearchTerms` を共用） | 横断検索のヒットを本文内検索へそのまま引き継ぐため |
 
 ### v0.4 からの変更点（レビューでの決定）
 
@@ -263,9 +272,11 @@ CREATE TABLE articles (                     -- 1 行 = 1 条（本則・附則�
 CREATE INDEX idx_articles_law_seq ON articles(law_id, seq);
 CREATE INDEX idx_articles_law_num ON articles(law_id, section, article_num);
 
--- Phase 2: 外部コンテンツ FTS5（trigram）。MVP では作らない
--- CREATE VIRTUAL TABLE articles_fts USING fts5(plain_text, caption, article_title,
---   content='articles', content_rowid='id', tokenize='trigram');
+-- 横断全文検索の索引（スキーマ v2、Phase 2）。外部コンテンツ表にして本文を二重に持たない。
+-- INSERT / DELETE のトリガで同期する（条の行は更新せず、法令単位で全削除→全挿入するので UPDATE トリガは不要）。
+-- v1 からの移行では作成後に INSERT INTO articles_fts(articles_fts) VALUES('rebuild') で既存本文を索引化する
+CREATE VIRTUAL TABLE articles_fts USING fts5(plain_text, caption, article_title,
+  content='articles', content_rowid='id', tokenize='trigram');
 
 CREATE TABLE sync_runs (
   id INTEGER PRIMARY KEY, started_at TEXT, finished_at TEXT,
@@ -285,10 +296,10 @@ CREATE TABLE app_meta (key TEXT PRIMARY KEY, value TEXT);  -- last_catalog_sync_
 |---|---|---|---|
 | `法人税` `措置法` | 法令名検索 | MVP | `laws.title / abbrev / title_kana` に LIKE。略称辞書（法法・所法・消法・措法・通法・徴法・相法・地法 …）で展開。API の `abbrev`（租特法 など）も辞書に取り込む。廃止・失効法令は現行の後ろに「廃止」バッジ付きで並べる |
 | `法人税法22条` `法法２２` `措法42の12の5` | 条番号ジャンプ | MVP | 正規表現で「法令名/略称 + 条番号（枝番 `の`）」を抽出 → `articles(law_id, section, article_num)` の条へスクロール。候補が複数なら一覧 |
-| （閲覧画面内で）`損金` | 本文内検索 | MVP | 開いている法令の `articles.plain_text` に LIKE（NFKC 正規化済み）。件数・前後移動・ハイライト |
-| `役員給与 損金` | 横断全文検索 | Phase 2 | FTS5 trigram、AND 結合、`snippet()`。3 文字未満は LIKE にフォールバック。ユーザー入力は各トークンをダブルクォートで囲んで MATCH 式に渡す（演算子として解釈させない） |
+| （閲覧画面内で）`損金` | 本文内検索 | MVP | 開いている法令の本則・別表の `plain_text`（幅正規化済み）をメモリ上で照合。横断検索と同じ `splitSearchTerms` で語に分け、すべての語を含む条が一致。件数・前後移動・ハイライト。附則側の切替は未実装（附則タブが改正法令ごとの折りたたみ表示のため、別途） |
+| `役員給与 損金` | 横断全文検索 | Phase 2（実装済み） | 端末に保存済みの本文（`articles_fts`）を対象に、空白区切りの**すべての語を含む条**を探す。3 文字以上の語は `MATCH`（各語をダブルクォートで囲み、`"` は `""` に。`OR` `NOT` 括弧を演算子にしない）、3 文字未満の語は同じクエリで `plain_text LIKE`。並びは `bm25(articles_fts, 1.0, 3.0, 3.0)`（見出し・条名の一致を本文の 3 倍に重み付け）。抜粋は `snippet()`（MATCH があるとき）、短い語だけのときは最初の出現位置の前後を `substr` で切り出す。既定は本則・別表のみで「附則も検索」で附則を含める。法令別件数はフィルタ前の全体で数え、法令チップで絞り込む。ヒットは `/law/{id}/article/{num}?q=語` で開く |
 
-Phase 2 の索引は本文の 2〜3 倍になり得る。既定の取得（改正附則除く）なら `plain_text` は所得税法 38 万字・法人税法 35 万字・地方税法 131 万字で、スコープ全体でも数千万字（数十 MB）に収まる見込み。
+索引は本文の 2〜3 倍になり得る。既定の取得（改正附則除く）なら `plain_text` は所得税法 38 万字・法人税法 35 万字・地方税法 131 万字で、スコープ全体でも数千万字（数十 MB）に収まる見込み。
 
 ## 7. 本文パース（LawNode → 条文）
 
@@ -307,7 +318,7 @@ Phase 2 の索引は本文の 2〜3 倍になり得る。既定の取得（改�
 | 画面 | 内容 |
 |---|---|
 | 検索（ホーム） | 検索窓、最近開いた法令、主要法令へのショートカット、同期状態バナー（最終同期・改正あり件数・施行予定件数） |
-| 検索結果 | 法令名の一致一覧（種別・分類・施行日・「改正あり」「施行予定 ○月○日」バッジ）。条番号ジャンプの候補もここに出す |
+| 検索結果 | 「法令」タブ: 法令名の一致一覧（種別・分類・施行日・「改正あり」「施行予定 ○月○日」バッジ）と条番号ジャンプの候補。「本文」タブ: 横断全文検索（§6）。上部に「附則も検索」チップと法令別件数のチップ、各ヒットに法令名・条名・見出しと一致語を強調した抜粋。ヒットをタップすると条へ着地し、本文内検索が同じ語で開く |
 | 法令閲覧 | 開いたときに最新本文を取得。キャッシュが現行なら通信せず即表示。取得中はスケルトン（古いキャッシュを先に出さない。読み始めた条文が途中で差し替わる方が害が大きい）。取得に失敗したときだけ古いキャッシュを「○月○日時点」の注記付きで表示。条の連続表示（`ListView` 遅延描画）。左ドロワーに目次。上部に本文内検索。条の長押しでコピー／共有／e-Gov で開く（`https://laws.e-gov.go.jp/law/{law_id}`）。ヘッダに「施行日 / 改正法令 / 取得日時 / リビジョン」を常時表示 |
 | 改正履歴 | 閲覧画面のタブ。`law_revisions` を時系列表示。未施行改正は「施行予定 2026-10-01（所得税法等の一部を改正する法律）」と強調 |
 | 法令一覧 | 分類・種別でグルーピングした全スコープ一覧。キャッシュ済み／未取得／改正あり をアイコンで表示。末尾に「廃止・失効（参考）」グループ（廃止日・状態を表示、グレー表示） |
@@ -321,7 +332,7 @@ Phase 2 の索引は本文の 2〜3 倍になり得る。既定の取得（改�
 |---|---|---|
 | フレームワーク | Flutter stable / Dart 3 | MVP は iOS / Android。Web 版は当面作らないが CI でビルドを維持（下記）。macOS / Windows も同じコード |
 | 状態管理・DI | `flutter_riverpod`（コード生成なし） | Repository/Service の注入とテスト差し替え。生成器を使わないのは、build_runner を drift だけに留めてビルドを軽くするため |
-| ルーティング | `go_router` | 条へのディープリンク `/law/:lawId/article/:num` |
+| ルーティング | `go_router` | 条へのディープリンク `/law/:lawId/article/:num`（`?q=語` で本文内検索を開いた状態にする） |
 | HTTP | `dio` | gzip、タイムアウト、リトライ、キャンセル。Web でも同じコードが動く |
 | XML | `xml` | DOM とイベントストリームの両方。DTD の外部実体を展開しない |
 | DB | `drift` + `sqlite3_flutter_libs` | 型安全 SQL、FTS5、バックグラウンド isolate、デスクトップでも動く。Web は `sqlite3.wasm` + Worker 構成 |
@@ -381,7 +392,7 @@ zeibun/
 | 区分 | 脅威 | 影響 | 対策 | 段階 |
 |---|---|---|---|---|
 | **S**poofing | 偽の e-Gov サーバ（MITM・DNS 詐称・不正な Wi-Fi）が改変した条文を返す | 誤った条文を最新として表示 | HTTPS 固定・平文 HTTP 禁止。証明書検証は OS の信頼ストアに任せ、`badCertificateCallback` などの緩和コードを禁止（CI で grep）。証明書ピン留めは政府ドメインの証明書更新で全ユーザーが止まるリスクが大きいので採らない | MVP |
-| S | 偽装ディープリンク（`/law/…` を装った URL）で意図しない画面へ誘導 | 混乱・フィッシングの踏み台 | `lawId` は `^\d{3}[A-Z]{2}\d{10}$`、条番号は `^\d+(_\d+)*$` で検証。不一致は一覧へ戻す。ディープリンクのパラメータから外部 URL を組み立てない | MVP |
+| S | 偽装ディープリンク（`/law/…` を装った URL）で意図しない画面へ誘導 | 混乱・フィッシングの踏み台 | `lawId` は `^\d{3}[A-Z]{2}\d{10}$`、条番号は `^\d+(_\d+)*$` で検証。不一致は一覧へ戻す。ディープリンクのパラメータから外部 URL を組み立てない。`?q=` は本文内検索の語にしか使わず（SQL にも URL にも渡さない）、長さを 100 文字で切る | MVP |
 | S | アプリ自体のなりすまし（e-Gov 公式と誤認） | 信頼の誤用 | 「非公式」の明示（§10）。ストアの表示名・アイコンに政府機関のロゴを使わない | MVP |
 | **T**ampering | 通信経路での改ざん | 誤った条文 | TLS。加えてヘッダの `Content-Length` と受信長の不一致・XML パース失敗時は破棄し、古いキャッシュを残す | MVP |
 | T | 取得途中の中断による部分的な本文 | 欠けた条文を表示 | 法令単位のトランザクション（§4.5）。`body_revision_id` は成功時のみ更新 | MVP |
@@ -399,7 +410,7 @@ zeibun/
 | D | e-Gov API の停止・遅延 | 同期不可 | キャッシュで閲覧を継続。タイムアウト 30 秒。§4.6 のバックオフ | MVP |
 | D | **自分が e-Gov への DoS 源になる**（普及時のアクセス集中、リトライ嵐） | 公共 API に迷惑・遮断される | 5 req/s・並列 3、10 分抑制、失敗時の間隔延長（§4.6）。全件先読みは Wi-Fi 推奨とユーザーの明示操作でのみ実行。CI で「起動時のリクエスト数 ≤ 20」を fake サーバで検証 | MVP |
 | D | 端末容量の枯渇 | 端末全体の不調 | キャッシュ上限と LRU 削除（§10）。空き容量不足時は本文取得を中止して通知 | MVP |
-| **E**levation of privilege | SQL インジェクション | DB 破壊・漏えい | drift のパラメータ化クエリのみ。文字列連結の SQL を lint で禁止。FTS5 の MATCH 式はトークンをダブルクォートで囲みエスケープ | MVP / Phase 2 |
+| **E**levation of privilege | SQL インジェクション | DB 破壊・漏えい | drift のパラメータ化クエリのみ。FTS5 の MATCH 式はバインド変数で渡し、トークンをダブルクォートで囲み `"` を `""` にエスケープ（`FtsQuery`、テストで `NOT` / `OR` / `"` を確認）。LIKE のパターンは `%` `_` を除去 | MVP / Phase 2 |
 | E | パストラバーサル（`revision_id` や `Fig@src` `./pict/…` をファイル名に使う箇所） | 任意ファイルの読み書き | `revision_id` は `^[0-9A-Z_]+$` で検証。添付ファイル（Phase 3）は `src` をそのままパスにせず、ハッシュ化したファイル名で保存 | MVP / Phase 3 |
 | E | `/keyword` の `text` に含まれる HTML タグ（`<span>` など）の解釈 | 表示崩れ・将来 WebView を使えば XSS | WebView を使わない。タグは受信直後に除去してハイライト範囲だけを保持。表示は `Text`/`RichText` | Phase 3 |
 | E | 外部 URL の起動（「e-Gov で開く」） | 任意スキームの起動 | `https://laws.e-gov.go.jp/` 配下に固定し、`law_id` は検証済みの値のみ埋め込む | MVP |
@@ -419,7 +430,7 @@ zeibun/
 | API デコード | `/laws`（`asof` あり・なし）、`/law_revisions`、`/law_data`（XML 封筒）の固定レスポンスでモデル変換を検証（実レスポンスは `spike/fixtures/real/`） |
 | パーサ | 公式仕様の例示法令 XML と、実法令（Phase 0 で取得）をフィクスチャに。`OldNum`、枝番条、表、ルビ、附則、`ParagraphCaption` の各ケース（スパイクの `law_parser_test` を移植） |
 | 同期ロジック | fake `EgovApiClient` + in-memory DB で NEW / REVISED / CORRECTED / 未施行あり / MISSING / 途中失敗→再開 / バックオフの段階 |
-| 検索 | 法令名・略称・条番号ジャンプ・本文内検索（NFKC）。Phase 2 で FTS のエスケープ |
+| 検索 | 法令名・略称・条番号ジャンプ・本文内検索。横断全文検索は実本文（地方法人税法）を索引化して、3 文字以上の語・2 文字の語・複数語 AND・附則の切替・法令フィルタ・演算子の無害化を検証。v1 → v2 の移行は実ファイル DB で既存本文が索引化されることを検証 |
 | セキュリティ | ディープリンク・`revision_id` の検証、`<!DOCTYPE` 拒否、受信上限、起動時リクエスト数の上限を fake サーバで検証 |
 | UI | 検索→閲覧→条ジャンプの Widget テスト |
 | 結合（手動） | 実 API に対する起動時同期の所要時間・通信量、主要税法の取得＋パース時間（Phase 0 のスパイク CLI を流用） |
@@ -435,7 +446,7 @@ zeibun/
 | 3 | 主要税法の本文サイズと Dart パース時間・メモリ | **確定**（下表）。中位 Android の実機計測は Phase 1 の最初に行う |
 | 4 | e-Gov API の CORS | **確定**: 全エンドポイントで `access-control-allow-origin: *`。Web 版は技術的に可能だが当面作らない（v0.5 の決定） |
 | 5 | `asof=2099-12-31` の一覧で `current_revision_info` が現行を返すこと | **確定**: 252 件すべて一致。ただし `current_revision_status` は 13 件で `PreviousEnforced` になるので `law_revision_id` だけを使う |
-| 6 | `sqlite3_flutter_libs` の SQLite で FTS5 trigram が使えるか | Phase 2 の着手時に確認 |
+| 6 | `sqlite3_flutter_libs` の SQLite で FTS5 trigram が使えるか | **確定**（Phase 2 着手時）: Android は sqlite3 3.52.0、iOS/macOS は `sqlite3/fts5` pod、テストの `NativeDatabase` は 3.45.1 で、いずれも `ENABLE_FTS5`。trigram の MATCH・`snippet()`・`bm25()`・外部コンテンツ表のトリガ・LIKE 最適化が動く。3 文字未満の語は MATCH に一致しない（v0.6 変更 2 の根拠） |
 
 Dart パース計測（Dart 3.13 VM、Linux x86_64、best of 2。`spike/bin/spike.dart bench`）:
 
@@ -462,6 +473,7 @@ Dart パース計測（Dart 3.13 VM、Linux x86_64、best of 2。`spike/bin/spik
 ### Phase 2: 横断全文検索
 
 - 対象法令の本文先読み（進捗画面、Wi-Fi 推奨、明示操作）、FTS5 trigram、スニペット、フィルタ、本則/附則切替、ブックマーク
+- 進捗: FTS5 索引・横断全文検索（本文タブ、附則切替、法令フィルタ、条への着地と強調）まで実装。先読みとブックマークは続く段階で
 
 ### Phase 3: 改正まわり・拡張
 

@@ -122,7 +122,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: SingleChildScrollView(
-          child: LawNodeRenderer(article.body, highlight: '地方法人税'),
+          child: LawNodeRenderer(article.body, highlight: const ['地方法人税']),
         ),
       ),
     ));
