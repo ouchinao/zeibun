@@ -8,9 +8,24 @@ e-Gov 法令API Version 2 から起動時に最新化し、端末内で検索・
 - [設計書 v0.5](docs/design.md)
 - [e-Gov 法令API v2 調査メモ](docs/egov-law-api-v2.md)
 - [公式 OpenAPI 仕様 lawapi-v2.yaml v2.1.139](docs/lawapi-v2.yaml)
+- [Flutter アプリ本体](app/README.md)
+- [コアパッケージ zeibun_core（純 Dart）](packages/zeibun_core/)
 - [Phase 0 スパイク（純 Dart）](spike/README.md)
+
+## 開発
+
+```sh
+(cd packages/zeibun_core && dart pub get && dart test)
+(cd app && flutter pub get && dart run build_runner build -d && flutter analyze && flutter test)
+```
 
 ## 出典
 
 法令データは [e-Gov法令検索](https://laws.e-gov.go.jp/)（デジタル庁）の法令APIから取得しています。
 本アプリはデジタル庁・e-Gov の公式アプリではありません。
+
+## ライセンス
+
+権利留保（All rights reserved）。ソースは閲覧・参照のために公開していますが、
+複製・改変・再配布・ストア公開・商用利用はできません。「zeibun」の名称・アイコン・
+ストア掲載物も同様です。詳細は [LICENSE](LICENSE)。

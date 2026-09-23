@@ -94,7 +94,8 @@ void main() {
     expect(r.headers[HttpHeaders.contentEncodingHeader], 'gzip');
     expect(r.wireBytes, lessThan(r.bytes.length));
     final laws = (r.json as Map)['laws'] as List;
-    final law = LawSummary.fromApi((laws.first as Map).cast<String, dynamic>());
+    final law =
+        LawSummary.fromApiRow((laws.first as Map).cast<String, dynamic>());
     expect(law.title, '法人税法');
     expect(law.category, '国税');
     expect(LawScope.tax.reasonFor(law), 'category:013');

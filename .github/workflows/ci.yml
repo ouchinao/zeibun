@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dart-core:
+    name: zeibun_core / spike (pure Dart)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: [packages/zeibun_core, spike]
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - run: dart pub get
+      - run: dart format --output=none --set-exit-if-changed .
+      - run: dart analyze --fatal-infos
+      - run: dart test
+
+  # コアは Web でも動くことを保証する（設計書 §9: Web 版は当面作らないが CI で維持）
+  dart-core-web:
+    name: zeibun_core on Chrome
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/zeibun_core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - uses: browser-actions/setup-chrome@v1
+      - run: dart pub get
+      # フィクスチャを読むテストは @TestOn('vm') で自ら外れるので、ファイルを列挙しない
+      - run: dart test --platform chrome
+
+  flutter-app:
+    name: app (analyze / test / build web)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart format --output=none --set-exit-if-changed lib test
+      - run: flutter analyze --fatal-infos
+      # 証明書検証を緩めるコードと dart:io を、アプリの lib に入れない（設計書 §11 S / §9）
+      - name: forbid certificate overrides and dart:io in lib
+        # `! grep` は errexit の対象外で最後の行しか効かないので、if で明示的に落とす
+        run: |
+          if grep -rn "badCertificateCallback\|allowBadCertificates\|SecurityContext" lib; then
+            echo "certificate validation must not be relaxed"; exit 1
+          fi
+          if grep -rn "^import 'dart:io'" lib ../packages/zeibun_core/lib; then
+            echo "dart:io is not allowed in lib (Web build)"; exit 1
+          fi
+      - run: flutter test --timeout 60s
+      # Web 版は当面出さないが、Web で動く状態を保つ（設計書 §9）
+      - run: flutter build web --release

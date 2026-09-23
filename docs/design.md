@@ -139,9 +139,9 @@ XML と JSON は同じ法令標準XML の表現違いで、要素名も属性も
         - law_revision_id 同じ・updated が違う           → CORRECTED（訂正・再登録）
         - revision_info.law_revision_id が現行と違う     → 未施行改正あり（実測 252 件中 55 件）
         - ローカルにあるが一覧に無い                      → MISSING（削除せずフラグ）
-     4. laws を更新（current_revision_id / catalog_updated / has_pending_amendment）
+     4. laws を更新（current_revision_id / catalog_updated / pending_revision_id）
         本文キャッシュ（body_revision_id）は残す → 一覧側と食い違えば「要更新」
-     5. 先読み対象（§4.4）のうち REVISED / CORRECTED のものは本文を取り直す（並列 3、5 req/s）
+     5. 先読み対象（§4.4）のうち REVISED / CORRECTED のものは本文を取り直す（逐次、5 req/s。並列にしないのは e-Gov への負荷を自分で増やさないため）
      6. sync_runs に記録。UI に「最終同期 09:12 / 改正あり 3 件 / 施行予定あり 55 件」
 
 法令を開いたとき（LawRepository.openLaw(lawId)）
@@ -198,7 +198,7 @@ XML と JSON は同じ法令標準XML の表現違いで、要素名も属性も
 
 ### 4.6 バックオフ規定（e-Gov への負荷を自分で増やさない）
 
-- 自主制限: 並列 3、5 req/s、`Accept-Encoding: gzip`、`User-Agent: zeibun/<version>`
+- 自主制限: 逐次実行、5 req/s、`Accept-Encoding: gzip`、`User-Agent: zeibun/<version>`（Web では UA を付けられない）
 - 5xx・タイムアウトは 1s, 2s, 4s（±25% のジッタ）で最大 3 回。4xx は記録して次へ
 - 起動時同期が 2 回連続で失敗したら、次回の自動同期までの間隔を 10 分 → 1 時間 → 6 時間 → 24 時間と伸ばす。成功でリセット。手動「今すぐ更新」は常に可
 - 同一の一覧取得が失敗しても本文取得は試みない（一覧が取れないときはサーバ側障害の可能性が高い）
@@ -220,11 +220,12 @@ CREATE TABLE laws (
   current_revision_id  TEXT,               -- 現行リビジョン（current_revision_info）
   current_enforced_at  TEXT,
   catalog_updated      TEXT,               -- current_revision_info.updated
-  has_pending_amendment INTEGER NOT NULL DEFAULT 0, -- asof 遠未来の revision_info が現行と違う
+  pending_revision_id  TEXT,               -- 未施行改正があるとき asof 遠未来側のリビジョン（NULL = なし）
   body_revision_id     TEXT,               -- 本文を保存済みのリビジョン（NULL = 未取得）
   body_synced_at       TEXT,
   body_includes_amend_suppl INTEGER NOT NULL DEFAULT 0, -- 改正法令の附則を含めて取得したか
-  missing_since        TEXT
+  missing_since        TEXT,
+  last_opened_at       TEXT                -- 最近開いた法令・先読み対象の判定に使う
 );
 
 CREATE TABLE law_revisions (                -- 改正履歴（開いた法令のみ。過去・現行・未施行）
@@ -257,7 +258,7 @@ CREATE TABLE articles (                     -- 1 行 = 1 条（本則・附則�
   caption              TEXT,
   breadcrumb           TEXT,               -- 第二編 > 第一章 > 第一節
   plain_text           TEXT NOT NULL,      -- 検索用の平文（NFKC 正規化済み）
-  body_json            BLOB NOT NULL       -- 表示用: 条のサブツリー JSON（gzip）
+  body_json            TEXT NOT NULL       -- 表示用: 条のサブツリー JSON。gzip BLOB にしないのは dart:io の gzip が Web に無いため（容量が問題になれば圧縮を足す）
 );
 CREATE INDEX idx_articles_law_seq ON articles(law_id, seq);
 CREATE INDEX idx_articles_law_num ON articles(law_id, section, article_num);
@@ -307,7 +308,7 @@ Phase 2 の索引は本文の 2〜3 倍になり得る。既定の取得（改�
 |---|---|
 | 検索（ホーム） | 検索窓、最近開いた法令、主要法令へのショートカット、同期状態バナー（最終同期・改正あり件数・施行予定件数） |
 | 検索結果 | 法令名の一致一覧（種別・分類・施行日・「改正あり」「施行予定 ○月○日」バッジ）。条番号ジャンプの候補もここに出す |
-| 法令閲覧 | 開いたときに最新本文を取得（取得中はスケルトン、キャッシュがあれば先に表示）。条の連続表示（`ListView` 遅延描画）。左ドロワーに目次。上部に本文内検索。条の長押しでコピー／共有／e-Gov で開く（`https://laws.e-gov.go.jp/law/{law_id}`）。ヘッダに「施行日 / 改正法令 / 取得日時 / リビジョン」を常時表示 |
+| 法令閲覧 | 開いたときに最新本文を取得。キャッシュが現行なら通信せず即表示。取得中はスケルトン（古いキャッシュを先に出さない。読み始めた条文が途中で差し替わる方が害が大きい）。取得に失敗したときだけ古いキャッシュを「○月○日時点」の注記付きで表示。条の連続表示（`ListView` 遅延描画）。左ドロワーに目次。上部に本文内検索。条の長押しでコピー／共有／e-Gov で開く（`https://laws.e-gov.go.jp/law/{law_id}`）。ヘッダに「施行日 / 改正法令 / 取得日時 / リビジョン」を常時表示 |
 | 改正履歴 | 閲覧画面のタブ。`law_revisions` を時系列表示。未施行改正は「施行予定 2026-10-01（所得税法等の一部を改正する法律）」と強調 |
 | 法令一覧 | 分類・種別でグルーピングした全スコープ一覧。キャッシュ済み／未取得／改正あり をアイコンで表示。末尾に「廃止・失効（参考）」グループ（廃止日・状態を表示、グレー表示） |
 | 設定 | 今すぐ更新、先読み ON/OFF、キャッシュ削除、同期ログ、出典・免責・ライセンス |
@@ -319,15 +320,15 @@ Phase 2 の索引は本文の 2〜3 倍になり得る。既定の取得（改�
 | 領域 | 選定 | 理由 |
 |---|---|---|
 | フレームワーク | Flutter stable / Dart 3 | MVP は iOS / Android。Web 版は当面作らないが CI でビルドを維持（下記）。macOS / Windows も同じコード |
-| 状態管理・DI | `riverpod`（`riverpod_generator`） | Repository/Service の注入とテスト差し替え |
+| 状態管理・DI | `flutter_riverpod`（コード生成なし） | Repository/Service の注入とテスト差し替え。生成器を使わないのは、build_runner を drift だけに留めてビルドを軽くするため |
 | ルーティング | `go_router` | 条へのディープリンク `/law/:lawId/article/:num` |
 | HTTP | `dio` | gzip、タイムアウト、リトライ、キャンセル。Web でも同じコードが動く |
 | XML | `xml` | DOM とイベントストリームの両方。DTD の外部実体を展開しない |
 | DB | `drift` + `sqlite3_flutter_libs` | 型安全 SQL、FTS5、バックグラウンド isolate、デスクトップでも動く。Web は `sqlite3.wasm` + Worker 構成 |
-| モデル | `freezed` + `json_serializable` | |
-| 正規化 | `unorm_dart`（NFKC） | 全角半角の揺れ吸収 |
-| テスト | `flutter_test`, `mocktail`, drift の `NativeDatabase.memory()` | |
-| CI | GitHub Actions: `flutter analyze` / `flutter test` / `dart format --set-exit-if-changed` / **`flutter build web --release`** / **`flutter test --platform chrome`（`lib/data` と `lib/core` のテスト）** / `dart pub outdated` の定期確認 | Web を出さなくても Web で動く状態を保つ。`dart:io` の混入や Web 非対応パッケージの追加をここで止める |
+| モデル | 手書きの不変クラス（`zeibun_core`） | API のフィールドが少なく、生成器を増やすほどではない。増えたら `freezed` を検討 |
+| 正規化 | 自前（全角英数字・スペースの幅統一 + 漢数字） | NFKC 全体は不要で、文字数を変えない変換にするとハイライト位置の対応が取れる |
+| テスト | `flutter_test`, 手書きの fake API, drift の `NativeDatabase.memory()` | |
+| CI | GitHub Actions: core と spike の `dart test`、**core の `dart test --platform chrome`**、app の `flutter analyze` / `flutter test` / `dart format --set-exit-if-changed` / **`flutter build web --release`**、`badCertificateCallback` と `dart:io` の grep 禁止、Dependabot（pub / actions、週次） | Web を出さなくても Web で動く状態を保つ。`dart:io` の混入や Web 非対応パッケージの追加をここで止める |
 
 **Web について**: e-Gov API は `/laws`・`/law_data`・`/law_revisions`・`/keyword`・`/law_file` のすべてと OPTIONS プリフライトで `access-control-allow-origin: *` を返す（2026-09-23 実測）。中継サーバは不要で、静的ホスティングだけで動く。ただし次の制約がある。
 
@@ -342,14 +343,29 @@ Phase 2 の索引は本文の 2〜3 倍になり得る。既定の取得（改�
 
 中継サーバや Web 固有のライブラリ制限で「できない」ものは無い。増えるのはホスティングの選定、Worker、フォント同梱、Safari の永続性の 4 点で、いずれもモバイル版の設計を変えずに後から足せる。**MVP はモバイルのみとし、Web 版は当面作らない。** デスクトップで条文を見るなら e-Gov 法令検索が検索・時点指定・全文検索まで備えており、本アプリの強み（オフライン、起動時の改正検知、税法特化の略称ジャンプ）は Web では薄い。ただし CI で `flutter build web` と Chrome 上のテストを回し、Web で動く状態は維持する。将来出す場合は COOP/COEP を設定できる Cloudflare Pages 等を使う（GitHub Pages は不可）。
 
+### リポジトリ構成（Phase 1 で確定）
+
+```
+zeibun/
+├── packages/zeibun_core/   Flutter 非依存の純 Dart: LawNode / LawParser / LawScope / 差分判定 /
+│                           リクエスト組み立てと ID 検証 / law_data 封筒の検証 / 正規化・条番号・略称辞書
+├── app/                    Flutter アプリ本体（lib/data = drift・dio・リポジトリ、lib/features = 画面）
+├── spike/                  Phase 0 の計測 CLI（zeibun_core に依存。dart:io を使う HTTP クライアント）
+├── docs/                   設計書・調査メモ・公式 OpenAPI 仕様
+└── .github/workflows/      CI（core と spike の dart test、core の Chrome テスト、app の analyze / test / build web）
+```
+
+`zeibun_core` を別パッケージにするのは、`dart:io` や Flutter への依存が入らないことをパッケージ境界で強制し、
+`dart test --platform chrome` でブラウザ上でも同じロジックを検証するため。
+
 ## 10. 品質・運用上の設計
 
 - **失敗しても壊れない**: 本文の差し替えは法令単位のトランザクション。失敗した法令は `body_revision_id` が古いまま残り、次に開いたとき再試行
 - **通信量**: 起動時は一覧の約 70KB（14 リクエスト）。法令を開くときにその法令の本文（gzip で 30KB〜700KB。改正附則込みなら最大 1.5MB）。先読み ON の改正日で数 MB
 - **端末容量**: MVP は開いた法令のみで数十 MB 以内（`body_json` gzip は所得税法 0.4MB、地方税法 1.4MB）。キャッシュ上限（既定 500MB）を超えたら最終閲覧が古い法令から削除（先読み対象・ブックマークは除く）
-- **巨大法令の体感**: Dart デスクトップで 所得税法（附則除く 3.7MB）decode 0.4 秒 + パース 0.02 秒、地方税法（6.2MB）0.34 + 0.06 秒、租税特別措置法全文（13.8MB）0.66 + 0.09 秒。中位 Android を 3〜5 倍遅いと見て、既定取得なら 1〜2 秒、全文で数秒。スケルトン表示、キャッシュがあれば先に古い本文を出してから差し替え
+- **巨大法令の体感**: Dart デスクトップで 所得税法（附則除く 3.7MB）decode 0.4 秒 + パース 0.02 秒、地方税法（6.2MB）0.34 + 0.06 秒、租税特別措置法全文（13.8MB）0.66 + 0.09 秒。中位 Android を 3〜5 倍遅いと見て、既定取得なら 1〜2 秒、全文で数秒。取得中はスケルトン表示。古いキャッシュは取得に失敗したときだけ注記付きで出す
 - **スキーマ移行**: drift のマイグレーション。`plain_text` の作り方を変える場合は `app_meta.parser_version` を上げ、ローカルの `body_json` から再生成
-- **出典と免責**: 公共データ利用規約（PDL1.0、CC BY 4.0 互換）は出典明記を条件に商用利用（広告掲載を含む）を認めている。設定画面と閲覧画面フッタに「出典: e-Gov法令検索（https://laws.e-gov.go.jp/）」と取得日時。初回起動と設定画面に「デジタル庁・e-Gov の公式アプリではない」「表示内容の正確性・最新性を保証しない。正本は官報および e-Gov 法令検索で確認すること」を表示
+- **出典と免責**: 公共データ利用規約（PDL1.0、CC BY 4.0 互換）は出典明記を条件に商用利用（広告掲載を含む）を認めている。ホームのフッタと設定画面に「出典: e-Gov法令検索（https://laws.e-gov.go.jp/）」、閲覧画面に取得日時とリビジョン。初回起動のダイアログと設定画面に「デジタル庁・e-Gov の公式アプリではない」「表示内容の正確性・最新性を保証しない。正本は官報および e-Gov 法令検索で確認すること」を表示
 - **API 仕様変更への耐性**: 一覧のフィールド欠落は該当項目を NULL にして続行。本文の XML スキーマ変更は未知タグを無視。`/law_data` が 4xx を返す法令は「取得不可」バッジで隔離し、他の法令に影響させない
 
 ## 11. セキュリティ設計（STRIDE）

@@ -117,3 +117,5 @@ app.*.symbols
 !**/ios/**/default.perspectivev3
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
 !/dev/ci/**/Gemfile.lock
+# アプリ本体のロックファイルはコミットする（設計書 §11 供給網）
+!/app/pubspec.lock
