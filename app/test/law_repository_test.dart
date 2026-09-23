@@ -25,15 +25,8 @@ void main() {
 
   LawRepository repo() => LawRepository(api: api, db: db, clock: () => now);
 
-  final revTag = RegExp('<law_revision_id>[^<]+</law_revision_id>');
-
-  /// フィクスチャの revision_info を要求 ID に合わせて返す。
-  void serveBody(String revisionId) {
-    api.onPath('/api/2/law_data/$revisionId', (uri) {
-      return fixture('law_data_426AC0000000011_地方法人税法.xml').replaceFirst(revTag,
-          '<law_revision_id>${uri.pathSegments.last}</law_revision_id>');
-    });
-  }
+  void serveBody(String revisionId) =>
+      api.onPath('/api/2/law_data/$revisionId', lawDataHandler());
 
   test('first open fetches /law_data without amendment suppl, then caches',
       () async {
@@ -81,7 +74,7 @@ void main() {
     api.onPath(
         '/api/2/law_data/${law.currentRevisionId}',
         (_) => fixture('law_data_426AC0000000011_地方法人税法.xml').replaceFirst(
-            revTag,
+            RegExp('<law_revision_id>[^<]+</law_revision_id>'),
             '<law_revision_id>426AC0000000011_20000101_000000000000000</law_revision_id>'));
     final r = await repo().openLaw(lawId);
     expect(r.status, BodyStatus.unavailable);

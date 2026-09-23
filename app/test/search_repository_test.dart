@@ -63,12 +63,7 @@ void main() {
 
     setUp(() async {
       final api = FakeEgovApi()
-        ..onPath('/api/2/laws', catalogHandler())
-        ..onPath(
-            '/api/2/law_data/${(await db.getLaw(chihou))!.currentRevisionId}',
-            (uri) => fixture('law_data_426AC0000000011_地方法人税法.xml').replaceFirst(
-                RegExp('<law_revision_id>[^<]+</law_revision_id>'),
-                '<law_revision_id>${uri.pathSegments.last}</law_revision_id>'));
+        ..onPathPrefix('/api/2/law_data/', lawDataHandler());
       await LawRepository(api: api, db: db).openLaw(chihou);
     });
 

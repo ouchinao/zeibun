@@ -33,6 +33,15 @@ String formatDate(String? ymd) {
   return '${p[0]}年${int.tryParse(p[1]) ?? p[1]}月${int.tryParse(p[2]) ?? p[2]}日';
 }
 
+/// `1.2 MB` / `340 KB`。
+String formatBytes(int bytes) {
+  if (bytes >= 1024 * 1024) {
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+  if (bytes >= 1024) return '${(bytes / 1024).round()} KB';
+  return '$bytes B';
+}
+
 const Map<String, String> lawTypeLabels = {
   'Constitution': '憲法',
   'Act': '法律',

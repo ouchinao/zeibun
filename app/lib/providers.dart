@@ -1,3 +1,4 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/foundation.dart';
@@ -7,6 +8,7 @@ import 'package:zeibun_core/zeibun_core.dart';
 import 'data/db/database.dart';
 import 'data/egov/egov_api.dart';
 import 'data/repositories/law_repository.dart';
+import 'data/repositories/prefetch_service.dart';
 import 'data/repositories/search_repository.dart';
 import 'data/repositories/sync_service.dart';
 import 'features/settings/settings_controller.dart';
@@ -47,6 +49,50 @@ final syncServiceProvider = Provider<SyncService>((ref) {
 /// 同期状態（`ValueListenableBuilder` で購読する）。
 final syncStateListenableProvider = Provider<ValueListenable<SyncState>>(
     (ref) => ref.watch(syncServiceProvider).state);
+
+final prefetchServiceProvider = Provider<PrefetchService>((ref) =>
+    PrefetchService(
+        db: ref.watch(databaseProvider),
+        repo: ref.watch(lawRepositoryProvider)));
+
+final prefetchStateListenableProvider =
+    Provider<ValueListenable<PrefetchState>>(
+        (ref) => ref.watch(prefetchServiceProvider).state);
+
+/// 一覧が変わるたびに数え直す（保存が進めば減る）。
+final prefetchTargetCountProvider =
+    FutureProvider.autoDispose<int>((ref) async {
+  ref.watch(lawsStreamProvider);
+  return (await ref.watch(prefetchServiceProvider).targets()).length;
+});
+
+enum NetworkKind {
+  unmetered,
+  metered,
+
+  /// プラグインが応答しない・対応していない環境。判断は画面側に委ねる
+  unknown,
+}
+
+/// `mobile` の有無だけで判定しないのは、Wi-Fi とモバイルの両方に繋がった端末で
+/// 警告を出さないため。取得の失敗を例外のまま画面に渡さないのは、回線が分からない
+/// だけで保存を始められなくならないようにするため。
+final networkKindProvider =
+    FutureProvider.autoDispose<NetworkKind>((ref) async {
+  final List<ConnectivityResult> results;
+  try {
+    results = await Connectivity().checkConnectivity();
+  } catch (e) {
+    debugPrint('connectivity unavailable: $e');
+    return NetworkKind.unknown;
+  }
+  if (results.contains(ConnectivityResult.wifi) ||
+      results.contains(ConnectivityResult.ethernet)) {
+    return NetworkKind.unmetered;
+  }
+  if (results.contains(ConnectivityResult.mobile)) return NetworkKind.metered;
+  return NetworkKind.unknown;
+});
 
 final lawsStreamProvider =
     StreamProvider<List<Law>>((ref) => ref.watch(databaseProvider).watchLaws());

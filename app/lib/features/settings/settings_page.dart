@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app_notices.dart';
 import '../../data/db/database.dart';
+import '../../data/repositories/prefetch_service.dart';
 import '../../providers.dart';
 import '../../util/format.dart';
 import 'settings_controller.dart';
@@ -53,6 +55,20 @@ class SettingsPage extends ConsumerWidget {
             title: const Text('今すぐ更新'),
             subtitle: const Text('e-Gov から法令一覧を取り直します'),
             onTap: () => _refreshNow(ref),
+          ),
+          ValueListenableBuilder(
+            valueListenable: ref.watch(prefetchStateListenableProvider),
+            builder: (context, state, _) => ListTile(
+              leading: const Icon(Icons.cloud_download_outlined),
+              title: const Text('全法令を端末に保存'),
+              subtitle: Text(switch (state) {
+                PrefetchRunning(:final progress) =>
+                  '保存中 ${progress.done} / ${progress.total} 件',
+                _ => 'オフラインで開け、横断全文検索の対象になります',
+              }),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/settings/prefetch'),
+            ),
           ),
           SwitchListTile(
             secondary: const Icon(Icons.download_for_offline),

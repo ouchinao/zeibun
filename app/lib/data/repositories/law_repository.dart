@@ -105,7 +105,8 @@ class LawRepository {
   /// `/law_file` を使わないのは gzip が効かず所得税法で 16MB がそのまま流れるため。
   /// `Isolate.run` ではなく `compute` なのは、Web でも同じ呼び出しで動くから
   /// （Web ではメインスレッドで実行される）。
-  Future<void> fetchBody(String lawId, String revisionId,
+  /// `void` ではなく受信バイト数を返すのは、全法令の保存で進捗に受信量を出すため。
+  Future<int> fetchBody(String lawId, String revisionId,
       {required bool includeAmendSuppl}) async {
     final uri = requests.lawDataXml(revisionId,
         includeAmendmentSuppl: includeAmendSuppl);
@@ -119,6 +120,7 @@ class LawRepository {
       includesAmendSuppl: includeAmendSuppl,
       syncedAt: _clock().toIso8601String(),
     );
+    return bytes.length;
   }
 
   /// 改正された法令の本文を先読みする（設計書 §4.4）。

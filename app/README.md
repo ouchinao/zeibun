@@ -16,8 +16,9 @@ lib/
 │   ├── egov/egov_api.dart        dio クライアント（5 req/s、再試行、受信上限、失敗種別 EgovErrorKind）
 │   └── repositories/
 │       ├── sync_service.dart     起動時同期・手動更新（§4.2）、バックオフ（§4.6）、二重実行の抑止
-│       ├── law_repository.dart   本文の取得・検証・キャッシュ（§4.5）、先読み、改正履歴
-│       └── search_repository.dart 法令名検索・略称展開・条番号ジャンプ（§6）
+│       ├── law_repository.dart   本文の取得・検証・キャッシュ（§4.5）、改正時の先読み、改正履歴
+│       ├── prefetch_service.dart 全法令の保存（§4.4）: 逐次取得・進捗・中断・通信失敗での打ち切り
+│       └── search_repository.dart 法令名検索・略称展開・条番号ジャンプ・横断全文検索（§6）
 ├── features/                    画面（機能単位）
 │   ├── home/        検索窓・同期バナー・最近開いた法令・主要税法・初回免責
 │   ├── search/      検索結果（条番号ジャンプの候補を含む）
@@ -25,8 +26,8 @@ lib/
 │   ├── law_viewer/  閲覧。law_page（枠・本文内検索）、main_tab / suppl_tab / revisions_tab、
 │   │                toc_drawer、article_menu、law_text（画面用モデル）、law_node_renderer
 │   ├── sync/        同期状態バナー
-│   └── settings/    設定の Notifier（SharedPreferences）と設定画面
-└── util/format.dart
+│   └── settings/    設定の Notifier（SharedPreferences）、設定画面、全法令を端末に保存する画面
+└── util/           format（日時・種別・バイト数）、highlight（検索語の強調）
 ```
 
 層の決まり:
