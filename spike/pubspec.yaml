@@ -1,0 +1,15 @@
+name: zeibun_spike
+description: Phase 0 spike for zeibun - e-Gov Law API v2 catalog/body measurements (pure Dart, no Flutter).
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  args: ^2.5.0
+  xml: ^6.5.0
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.25.0
