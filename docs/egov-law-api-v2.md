@@ -11,7 +11,8 @@ zeibun が利用する e-Gov 法令API v2 について、設計判断の根拠�
 | `category_cd=036` | 「地方財政」120 件（`repeal_status=None`）。題名に「税」を含むもの 46 件 |
 | `asof=2099-12-31` | 全行に `current_revision_info` が付き、その `law_revision_id` は `asof` なしの一覧の現行と 252 件すべて一致。`revision_info` 側が現行と異なる（= 未施行改正あり）法令は 55 件。**ただし `current_revision_info.current_revision_status` は 13 件で `PreviousEnforced` になる**（asof 基準で評価されている模様）ので、判定には `law_revision_id` の比較だけを使う |
 | `law_id=<ID>` | 1 件だけ返る（`total_count: 1`）。明示指定は 1 件 1 リクエスト |
-| CORS | `/laws` に `Origin` ヘッダを付けると **`access-control-allow-origin: *`** が返る（CloudFront 配信）。Flutter Web から直接呼べる |
+| CORS | `/laws`・`/law_data`・`/law_revisions`・`/keyword`・`/law_file` のすべてで **`access-control-allow-origin: *`**。OPTIONS プリフライトも 200 で `access-control-allow-methods: GET,HEAD,POST`、`access-control-max-age: 1800`。Flutter Web から直接呼べる |
+| 廃止・失効の分布 | `013` 287 件中 35 件（LossOfEffectiveness 31 / Repeal 3 / Expire 1。例: 国税犯則取締法 2018-04-01 廃止）。`036` 162 件中、題名に「税」を含む 74 件のうち 28 件（LossOfEffectiveness 25 / Repeal 3） |
 | `/law_file` の圧縮 | **gzip されない**（`content-type: application/octet-stream`、`content-disposition: attachment`、`content-encoding` なし）。所得税法 XML は 16.4MB がそのまま流れる |
 | `/law_data` の圧縮 | **gzip が効く**。同じ所得税法 XML が wire 672KB（約 24 分の 1）。本文取得はこちらを使う |
 | 本文サイズ | 調査メモ v0.1 の目安（数百 KB〜十数 MB）より大きい。下記「本文」の表を参照 |

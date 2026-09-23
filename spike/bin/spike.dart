@@ -101,10 +101,10 @@ Future<void> runCatalog(String outDir) async {
   Future<void> run(Map<String, String> q) async {
     var offset = 0;
     while (true) {
+      // repeal_status は絞らない（廃止・失効法令は「参考」として一覧に載せる）
       final query = {
         ...q,
         'asof': '2099-12-31',
-        'repeal_status': 'None',
         'response_format': 'json',
         if (offset > 0) 'offset': '$offset',
       };
