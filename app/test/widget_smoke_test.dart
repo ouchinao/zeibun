@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zeibun/app.dart';
 import 'package:zeibun/data/db/database.dart';
 import 'package:zeibun/data/repositories/sync_service.dart';
+import 'package:zeibun/features/bookmarks/bookmark_providers.dart';
 import 'package:zeibun/features/law_viewer/law_node_renderer.dart';
 import 'package:zeibun/features/settings/settings_controller.dart';
 import 'package:zeibun/providers.dart';
@@ -33,6 +34,7 @@ void main() {
     required List<Law> laws,
     required ValueNotifier<SyncState> sync,
     bool disclaimerShown = true,
+    List<BookmarkEntry> bookmarks = const [],
   }) async {
     SharedPreferences.setMockInitialValues(
         {if (disclaimerShown) 'disclaimer_shown_v1': true});
@@ -42,6 +44,7 @@ void main() {
         sharedPreferencesProvider.overrideWithValue(prefs),
         egovApiProvider.overrideWithValue(FakeEgovApi()),
         lawsStreamProvider.overrideWith((ref) => Stream.value(laws)),
+        bookmarksProvider.overrideWith((ref) => Stream.value(bookmarks)),
         syncStateListenableProvider.overrideWithValue(sync),
       ],
       child: const ZeibunApp(runSyncOnLaunch: false),
@@ -112,6 +115,33 @@ void main() {
     sync.value = const SyncBackingOff(3, null);
     await tester.pump();
     expect(find.textContaining('連続 3 回失敗'), findsOneWidget);
+  });
+
+  testWidgets('home lists bookmarks with the article title when known',
+      (tester) async {
+    await tester.pumpWidget(await app(
+      laws: const [],
+      sync: ValueNotifier(const SyncIdle()),
+      bookmarks: const [
+        BookmarkEntry(
+            id: 1,
+            lawId: '340AC0000000034',
+            lawTitle: '法人税法',
+            createdAt: '2026-09-23T12:00:00',
+            articleNum: '22',
+            articleTitle: '第二十二条',
+            caption: '（各事業年度の所得の金額の計算の通則）'),
+        BookmarkEntry(
+            id: 2,
+            lawId: '426AC0000000011',
+            lawTitle: '地方法人税法',
+            createdAt: '2026-09-23T11:00:00',
+            articleNum: '66_4'),
+      ],
+    ));
+    await settle(tester);
+    expect(find.text('法人税法 第二十二条'), findsOneWidget);
+    expect(find.text('地方法人税法 第66条の4'), findsOneWidget);
   });
 
   testWidgets('LawNodeRenderer renders a real article with highlight',

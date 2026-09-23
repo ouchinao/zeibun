@@ -6,6 +6,7 @@ import 'package:zeibun_core/zeibun_core.dart';
 import '../../app_notices.dart';
 import '../../data/db/database.dart';
 import '../../providers.dart';
+import '../bookmarks/bookmark_section.dart';
 import '../law_list/law_tile.dart';
 import '../settings/settings_controller.dart';
 import '../sync/sync_banner.dart';
@@ -95,6 +96,8 @@ class _HomePageState extends ConsumerState<HomePage> {
             loading: () => const LinearProgressIndicator(),
             error: (e, _) => _Hint('読み込みエラー: $e'),
           ),
+          const SizedBox(height: 24),
+          const BookmarkSection(),
           const SizedBox(height: 24),
           const _SectionTitle('主要な税法'),
           laws.when(

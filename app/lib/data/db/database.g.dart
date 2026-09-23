@@ -1054,7 +1054,10 @@ class $LawRevisionsTable extends LawRevisions
   @override
   late final GeneratedColumn<String> lawId = GeneratedColumn<String>(
       'law_id', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
+      type: DriftSqlType.string,
+      requiredDuringInsert: true,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('REFERENCES laws (law_id)'));
   static const VerificationMeta _enforcedAtMeta =
       const VerificationMeta('enforcedAt');
   @override
@@ -1748,7 +1751,10 @@ class $ArticlesTable extends Articles with TableInfo<$ArticlesTable, Article> {
   @override
   late final GeneratedColumn<String> lawId = GeneratedColumn<String>(
       'law_id', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
+      type: DriftSqlType.string,
+      requiredDuringInsert: true,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('REFERENCES laws (law_id)'));
   static const VerificationMeta _revisionIdMeta =
       const VerificationMeta('revisionId');
   @override
@@ -1975,7 +1981,8 @@ class Article extends DataClass implements Insertable<Article> {
   final String plainText;
 
   /// 表示用: 条のサブツリー JSON（`{tag, attr, children}`）。
-  /// 設計書では gzip BLOB だが、Web でも同じコードを使うため MVP はテキストで持つ。
+  /// gzip した BLOB にしないのは、`dart:io` の gzip が Web に無く、
+  /// 圧縮のためだけに依存を増やしたくないから。容量が問題になったら差し替える。
   final String bodyJson;
   const Article(
       {required this.id,
@@ -2993,6 +3000,273 @@ class AppMetaCompanion extends UpdateCompanion<AppMetaData> {
   }
 }
 
+class $BookmarksTable extends Bookmarks
+    with TableInfo<$BookmarksTable, Bookmark> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BookmarksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _lawIdMeta = const VerificationMeta('lawId');
+  @override
+  late final GeneratedColumn<String> lawId = GeneratedColumn<String>(
+      'law_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: true,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('REFERENCES laws (law_id)'));
+  static const VerificationMeta _articleNumMeta =
+      const VerificationMeta('articleNum');
+  @override
+  late final GeneratedColumn<String> articleNum = GeneratedColumn<String>(
+      'article_num', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<String> createdAt = GeneratedColumn<String>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [id, lawId, articleNum, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'bookmarks';
+  @override
+  VerificationContext validateIntegrity(Insertable<Bookmark> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('law_id')) {
+      context.handle(
+          _lawIdMeta, lawId.isAcceptableOrUnknown(data['law_id']!, _lawIdMeta));
+    } else if (isInserting) {
+      context.missing(_lawIdMeta);
+    }
+    if (data.containsKey('article_num')) {
+      context.handle(
+          _articleNumMeta,
+          articleNum.isAcceptableOrUnknown(
+              data['article_num']!, _articleNumMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Bookmark map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Bookmark(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      lawId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}law_id'])!,
+      articleNum: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}article_num']),
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $BookmarksTable createAlias(String alias) {
+    return $BookmarksTable(attachedDatabase, alias);
+  }
+}
+
+class Bookmark extends DataClass implements Insertable<Bookmark> {
+  final int id;
+  final String lawId;
+  final String? articleNum;
+  final String createdAt;
+  const Bookmark(
+      {required this.id,
+      required this.lawId,
+      this.articleNum,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['law_id'] = Variable<String>(lawId);
+    if (!nullToAbsent || articleNum != null) {
+      map['article_num'] = Variable<String>(articleNum);
+    }
+    map['created_at'] = Variable<String>(createdAt);
+    return map;
+  }
+
+  BookmarksCompanion toCompanion(bool nullToAbsent) {
+    return BookmarksCompanion(
+      id: Value(id),
+      lawId: Value(lawId),
+      articleNum: articleNum == null && nullToAbsent
+          ? const Value.absent()
+          : Value(articleNum),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory Bookmark.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Bookmark(
+      id: serializer.fromJson<int>(json['id']),
+      lawId: serializer.fromJson<String>(json['lawId']),
+      articleNum: serializer.fromJson<String?>(json['articleNum']),
+      createdAt: serializer.fromJson<String>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'lawId': serializer.toJson<String>(lawId),
+      'articleNum': serializer.toJson<String?>(articleNum),
+      'createdAt': serializer.toJson<String>(createdAt),
+    };
+  }
+
+  Bookmark copyWith(
+          {int? id,
+          String? lawId,
+          Value<String?> articleNum = const Value.absent(),
+          String? createdAt}) =>
+      Bookmark(
+        id: id ?? this.id,
+        lawId: lawId ?? this.lawId,
+        articleNum: articleNum.present ? articleNum.value : this.articleNum,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  Bookmark copyWithCompanion(BookmarksCompanion data) {
+    return Bookmark(
+      id: data.id.present ? data.id.value : this.id,
+      lawId: data.lawId.present ? data.lawId.value : this.lawId,
+      articleNum:
+          data.articleNum.present ? data.articleNum.value : this.articleNum,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Bookmark(')
+          ..write('id: $id, ')
+          ..write('lawId: $lawId, ')
+          ..write('articleNum: $articleNum, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, lawId, articleNum, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Bookmark &&
+          other.id == this.id &&
+          other.lawId == this.lawId &&
+          other.articleNum == this.articleNum &&
+          other.createdAt == this.createdAt);
+}
+
+class BookmarksCompanion extends UpdateCompanion<Bookmark> {
+  final Value<int> id;
+  final Value<String> lawId;
+  final Value<String?> articleNum;
+  final Value<String> createdAt;
+  const BookmarksCompanion({
+    this.id = const Value.absent(),
+    this.lawId = const Value.absent(),
+    this.articleNum = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  BookmarksCompanion.insert({
+    this.id = const Value.absent(),
+    required String lawId,
+    this.articleNum = const Value.absent(),
+    required String createdAt,
+  })  : lawId = Value(lawId),
+        createdAt = Value(createdAt);
+  static Insertable<Bookmark> custom({
+    Expression<int>? id,
+    Expression<String>? lawId,
+    Expression<String>? articleNum,
+    Expression<String>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (lawId != null) 'law_id': lawId,
+      if (articleNum != null) 'article_num': articleNum,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  BookmarksCompanion copyWith(
+      {Value<int>? id,
+      Value<String>? lawId,
+      Value<String?>? articleNum,
+      Value<String>? createdAt}) {
+    return BookmarksCompanion(
+      id: id ?? this.id,
+      lawId: lawId ?? this.lawId,
+      articleNum: articleNum ?? this.articleNum,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (lawId.present) {
+      map['law_id'] = Variable<String>(lawId.value);
+    }
+    if (articleNum.present) {
+      map['article_num'] = Variable<String>(articleNum.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<String>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BookmarksCompanion(')
+          ..write('id: $id, ')
+          ..write('lawId: $lawId, ')
+          ..write('articleNum: $articleNum, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -3001,12 +3275,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ArticlesTable articles = $ArticlesTable(this);
   late final $SyncRunsTable syncRuns = $SyncRunsTable(this);
   late final $AppMetaTable appMeta = $AppMetaTable(this);
+  late final $BookmarksTable bookmarks = $BookmarksTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities =>
-      [laws, lawRevisions, articles, syncRuns, appMeta];
+      [laws, lawRevisions, articles, syncRuns, appMeta, bookmarks];
 }
 
 typedef $$LawsTableCreateCompanionBuilder = LawsCompanion Function({
@@ -3057,6 +3332,54 @@ typedef $$LawsTableUpdateCompanionBuilder = LawsCompanion Function({
   Value<String?> lastOpenedAt,
   Value<int> rowid,
 });
+
+final class $$LawsTableReferences
+    extends BaseReferences<_$AppDatabase, $LawsTable, Law> {
+  $$LawsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$LawRevisionsTable, List<LawRevision>>
+      _lawRevisionsRefsTable(_$AppDatabase db) =>
+          MultiTypedResultKey.fromTable(db.lawRevisions,
+              aliasName: 'laws__law_id__law_revisions__law_id');
+
+  $$LawRevisionsTableProcessedTableManager get lawRevisionsRefs {
+    final manager = $$LawRevisionsTableTableManager($_db, $_db.lawRevisions)
+        .filter(
+            (f) => f.lawId.lawId.sqlEquals($_itemColumn<String>('law_id')!));
+
+    final cache = $_typedResult.readTableOrNull(_lawRevisionsRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
+
+  static MultiTypedResultKey<$ArticlesTable, List<Article>> _articlesRefsTable(
+          _$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(db.articles,
+          aliasName: 'laws__law_id__articles__law_id');
+
+  $$ArticlesTableProcessedTableManager get articlesRefs {
+    final manager = $$ArticlesTableTableManager($_db, $_db.articles).filter(
+        (f) => f.lawId.lawId.sqlEquals($_itemColumn<String>('law_id')!));
+
+    final cache = $_typedResult.readTableOrNull(_articlesRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
+
+  static MultiTypedResultKey<$BookmarksTable, List<Bookmark>>
+      _bookmarksRefsTable(_$AppDatabase db) =>
+          MultiTypedResultKey.fromTable(db.bookmarks,
+              aliasName: 'laws__law_id__bookmarks__law_id');
+
+  $$BookmarksTableProcessedTableManager get bookmarksRefs {
+    final manager = $$BookmarksTableTableManager($_db, $_db.bookmarks).filter(
+        (f) => f.lawId.lawId.sqlEquals($_itemColumn<String>('law_id')!));
+
+    final cache = $_typedResult.readTableOrNull(_bookmarksRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
+}
 
 class $$LawsTableFilterComposer extends Composer<_$AppDatabase, $LawsTable> {
   $$LawsTableFilterComposer({
@@ -3136,6 +3459,69 @@ class $$LawsTableFilterComposer extends Composer<_$AppDatabase, $LawsTable> {
 
   ColumnFilters<String> get lastOpenedAt => $composableBuilder(
       column: $table.lastOpenedAt, builder: (column) => ColumnFilters(column));
+
+  Expression<bool> lawRevisionsRefs(
+      Expression<bool> Function($$LawRevisionsTableFilterComposer f) f) {
+    final $$LawRevisionsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.lawId,
+        referencedTable: $db.lawRevisions,
+        getReferencedColumn: (t) => t.lawId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$LawRevisionsTableFilterComposer(
+              $db: $db,
+              $table: $db.lawRevisions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+
+  Expression<bool> articlesRefs(
+      Expression<bool> Function($$ArticlesTableFilterComposer f) f) {
+    final $$ArticlesTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.lawId,
+        referencedTable: $db.articles,
+        getReferencedColumn: (t) => t.lawId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ArticlesTableFilterComposer(
+              $db: $db,
+              $table: $db.articles,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+
+  Expression<bool> bookmarksRefs(
+      Expression<bool> Function($$BookmarksTableFilterComposer f) f) {
+    final $$BookmarksTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.lawId,
+        referencedTable: $db.bookmarks,
+        getReferencedColumn: (t) => t.lawId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$BookmarksTableFilterComposer(
+              $db: $db,
+              $table: $db.bookmarks,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
 }
 
 class $$LawsTableOrderingComposer extends Composer<_$AppDatabase, $LawsTable> {
@@ -3293,6 +3679,69 @@ class $$LawsTableAnnotationComposer
 
   GeneratedColumn<String> get lastOpenedAt => $composableBuilder(
       column: $table.lastOpenedAt, builder: (column) => column);
+
+  Expression<T> lawRevisionsRefs<T extends Object>(
+      Expression<T> Function($$LawRevisionsTableAnnotationComposer a) f) {
+    final $$LawRevisionsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.lawId,
+        referencedTable: $db.lawRevisions,
+        getReferencedColumn: (t) => t.lawId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$LawRevisionsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.lawRevisions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+
+  Expression<T> articlesRefs<T extends Object>(
+      Expression<T> Function($$ArticlesTableAnnotationComposer a) f) {
+    final $$ArticlesTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.lawId,
+        referencedTable: $db.articles,
+        getReferencedColumn: (t) => t.lawId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ArticlesTableAnnotationComposer(
+              $db: $db,
+              $table: $db.articles,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+
+  Expression<T> bookmarksRefs<T extends Object>(
+      Expression<T> Function($$BookmarksTableAnnotationComposer a) f) {
+    final $$BookmarksTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.lawId,
+        referencedTable: $db.bookmarks,
+        getReferencedColumn: (t) => t.lawId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$BookmarksTableAnnotationComposer(
+              $db: $db,
+              $table: $db.bookmarks,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
 }
 
 class $$LawsTableTableManager extends RootTableManager<
@@ -3304,9 +3753,10 @@ class $$LawsTableTableManager extends RootTableManager<
     $$LawsTableAnnotationComposer,
     $$LawsTableCreateCompanionBuilder,
     $$LawsTableUpdateCompanionBuilder,
-    (Law, BaseReferences<_$AppDatabase, $LawsTable, Law>),
+    (Law, $$LawsTableReferences),
     Law,
-    PrefetchHooks Function()> {
+    PrefetchHooks Function(
+        {bool lawRevisionsRefs, bool articlesRefs, bool bookmarksRefs})> {
   $$LawsTableTableManager(_$AppDatabase db, $LawsTable table)
       : super(TableManagerState(
           db: db,
@@ -3414,9 +3864,61 @@ class $$LawsTableTableManager extends RootTableManager<
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map((e) =>
+                  (e.readTable(table), $$LawsTableReferences(db, table, e)))
               .toList(),
-          prefetchHooksCallback: null,
+          prefetchHooksCallback: (
+              {lawRevisionsRefs = false,
+              articlesRefs = false,
+              bookmarksRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (lawRevisionsRefs) db.lawRevisions,
+                if (articlesRefs) db.articles,
+                if (bookmarksRefs) db.bookmarks
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (lawRevisionsRefs)
+                    await $_getPrefetchedData<Law, $LawsTable, LawRevision>(
+                        currentTable: table,
+                        referencedTable:
+                            $$LawsTableReferences._lawRevisionsRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$LawsTableReferences(db, table, p0)
+                                .lawRevisionsRefs,
+                        referencedItemsForCurrentItem: (item,
+                                referencedItems) =>
+                            referencedItems.where((e) => e.lawId == item.lawId),
+                        typedResults: items),
+                  if (articlesRefs)
+                    await $_getPrefetchedData<Law, $LawsTable, Article>(
+                        currentTable: table,
+                        referencedTable:
+                            $$LawsTableReferences._articlesRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$LawsTableReferences(db, table, p0).articlesRefs,
+                        referencedItemsForCurrentItem: (item,
+                                referencedItems) =>
+                            referencedItems.where((e) => e.lawId == item.lawId),
+                        typedResults: items),
+                  if (bookmarksRefs)
+                    await $_getPrefetchedData<Law, $LawsTable, Bookmark>(
+                        currentTable: table,
+                        referencedTable:
+                            $$LawsTableReferences._bookmarksRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$LawsTableReferences(db, table, p0).bookmarksRefs,
+                        referencedItemsForCurrentItem: (item,
+                                referencedItems) =>
+                            referencedItems.where((e) => e.lawId == item.lawId),
+                        typedResults: items)
+                ];
+              },
+            );
+          },
         ));
 }
 
@@ -3429,9 +3931,10 @@ typedef $$LawsTableProcessedTableManager = ProcessedTableManager<
     $$LawsTableAnnotationComposer,
     $$LawsTableCreateCompanionBuilder,
     $$LawsTableUpdateCompanionBuilder,
-    (Law, BaseReferences<_$AppDatabase, $LawsTable, Law>),
+    (Law, $$LawsTableReferences),
     Law,
-    PrefetchHooks Function()>;
+    PrefetchHooks Function(
+        {bool lawRevisionsRefs, bool articlesRefs, bool bookmarksRefs})>;
 typedef $$LawRevisionsTableCreateCompanionBuilder = LawRevisionsCompanion
     Function({
   required String revisionId,
@@ -3467,6 +3970,25 @@ typedef $$LawRevisionsTableUpdateCompanionBuilder = LawRevisionsCompanion
   Value<int> rowid,
 });
 
+final class $$LawRevisionsTableReferences
+    extends BaseReferences<_$AppDatabase, $LawRevisionsTable, LawRevision> {
+  $$LawRevisionsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $LawsTable _lawIdTable(_$AppDatabase db) =>
+      db.laws.createAlias('law_revisions__law_id__laws__law_id');
+
+  $$LawsTableProcessedTableManager get lawId {
+    final $_column = $_itemColumn<String>('law_id')!;
+
+    final manager = $$LawsTableTableManager($_db, $_db.laws)
+        .filter((f) => f.lawId.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_lawIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
 class $$LawRevisionsTableFilterComposer
     extends Composer<_$AppDatabase, $LawRevisionsTable> {
   $$LawRevisionsTableFilterComposer({
@@ -3478,9 +4000,6 @@ class $$LawRevisionsTableFilterComposer
   });
   ColumnFilters<String> get revisionId => $composableBuilder(
       column: $table.revisionId, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get lawId => $composableBuilder(
-      column: $table.lawId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get enforcedAt => $composableBuilder(
       column: $table.enforcedAt, builder: (column) => ColumnFilters(column));
@@ -3519,6 +4038,26 @@ class $$LawRevisionsTableFilterComposer
 
   ColumnFilters<String> get fetchedAt => $composableBuilder(
       column: $table.fetchedAt, builder: (column) => ColumnFilters(column));
+
+  $$LawsTableFilterComposer get lawId {
+    final $$LawsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.lawId,
+        referencedTable: $db.laws,
+        getReferencedColumn: (t) => t.lawId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$LawsTableFilterComposer(
+              $db: $db,
+              $table: $db.laws,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
 }
 
 class $$LawRevisionsTableOrderingComposer
@@ -3532,9 +4071,6 @@ class $$LawRevisionsTableOrderingComposer
   });
   ColumnOrderings<String> get revisionId => $composableBuilder(
       column: $table.revisionId, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get lawId => $composableBuilder(
-      column: $table.lawId, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get enforcedAt => $composableBuilder(
       column: $table.enforcedAt, builder: (column) => ColumnOrderings(column));
@@ -3575,6 +4111,26 @@ class $$LawRevisionsTableOrderingComposer
 
   ColumnOrderings<String> get fetchedAt => $composableBuilder(
       column: $table.fetchedAt, builder: (column) => ColumnOrderings(column));
+
+  $$LawsTableOrderingComposer get lawId {
+    final $$LawsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.lawId,
+        referencedTable: $db.laws,
+        getReferencedColumn: (t) => t.lawId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$LawsTableOrderingComposer(
+              $db: $db,
+              $table: $db.laws,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
 }
 
 class $$LawRevisionsTableAnnotationComposer
@@ -3588,9 +4144,6 @@ class $$LawRevisionsTableAnnotationComposer
   });
   GeneratedColumn<String> get revisionId => $composableBuilder(
       column: $table.revisionId, builder: (column) => column);
-
-  GeneratedColumn<String> get lawId =>
-      $composableBuilder(column: $table.lawId, builder: (column) => column);
 
   GeneratedColumn<String> get enforcedAt => $composableBuilder(
       column: $table.enforcedAt, builder: (column) => column);
@@ -3624,6 +4177,26 @@ class $$LawRevisionsTableAnnotationComposer
 
   GeneratedColumn<String> get fetchedAt =>
       $composableBuilder(column: $table.fetchedAt, builder: (column) => column);
+
+  $$LawsTableAnnotationComposer get lawId {
+    final $$LawsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.lawId,
+        referencedTable: $db.laws,
+        getReferencedColumn: (t) => t.lawId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$LawsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.laws,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
 }
 
 class $$LawRevisionsTableTableManager extends RootTableManager<
@@ -3635,12 +4208,9 @@ class $$LawRevisionsTableTableManager extends RootTableManager<
     $$LawRevisionsTableAnnotationComposer,
     $$LawRevisionsTableCreateCompanionBuilder,
     $$LawRevisionsTableUpdateCompanionBuilder,
-    (
-      LawRevision,
-      BaseReferences<_$AppDatabase, $LawRevisionsTable, LawRevision>
-    ),
+    (LawRevision, $$LawRevisionsTableReferences),
     LawRevision,
-    PrefetchHooks Function()> {
+    PrefetchHooks Function({bool lawId})> {
   $$LawRevisionsTableTableManager(_$AppDatabase db, $LawRevisionsTable table)
       : super(TableManagerState(
           db: db,
@@ -3716,9 +4286,46 @@ class $$LawRevisionsTableTableManager extends RootTableManager<
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map((e) => (
+                    e.readTable(table),
+                    $$LawRevisionsTableReferences(db, table, e)
+                  ))
               .toList(),
-          prefetchHooksCallback: null,
+          prefetchHooksCallback: ({lawId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (lawId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.lawId,
+                    referencedTable:
+                        $$LawRevisionsTableReferences._lawIdTable(db),
+                    referencedColumn:
+                        $$LawRevisionsTableReferences._lawIdTable(db).lawId,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
         ));
 }
 
@@ -3731,12 +4338,9 @@ typedef $$LawRevisionsTableProcessedTableManager = ProcessedTableManager<
     $$LawRevisionsTableAnnotationComposer,
     $$LawRevisionsTableCreateCompanionBuilder,
     $$LawRevisionsTableUpdateCompanionBuilder,
-    (
-      LawRevision,
-      BaseReferences<_$AppDatabase, $LawRevisionsTable, LawRevision>
-    ),
+    (LawRevision, $$LawRevisionsTableReferences),
     LawRevision,
-    PrefetchHooks Function()>;
+    PrefetchHooks Function({bool lawId})>;
 typedef $$ArticlesTableCreateCompanionBuilder = ArticlesCompanion Function({
   Value<int> id,
   required String lawId,
@@ -3768,6 +4372,25 @@ typedef $$ArticlesTableUpdateCompanionBuilder = ArticlesCompanion Function({
   Value<String> bodyJson,
 });
 
+final class $$ArticlesTableReferences
+    extends BaseReferences<_$AppDatabase, $ArticlesTable, Article> {
+  $$ArticlesTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $LawsTable _lawIdTable(_$AppDatabase db) =>
+      db.laws.createAlias('articles__law_id__laws__law_id');
+
+  $$LawsTableProcessedTableManager get lawId {
+    final $_column = $_itemColumn<String>('law_id')!;
+
+    final manager = $$LawsTableTableManager($_db, $_db.laws)
+        .filter((f) => f.lawId.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_lawIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
 class $$ArticlesTableFilterComposer
     extends Composer<_$AppDatabase, $ArticlesTable> {
   $$ArticlesTableFilterComposer({
@@ -3779,9 +4402,6 @@ class $$ArticlesTableFilterComposer
   });
   ColumnFilters<int> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get lawId => $composableBuilder(
-      column: $table.lawId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get revisionId => $composableBuilder(
       column: $table.revisionId, builder: (column) => ColumnFilters(column));
@@ -3816,6 +4436,26 @@ class $$ArticlesTableFilterComposer
 
   ColumnFilters<String> get bodyJson => $composableBuilder(
       column: $table.bodyJson, builder: (column) => ColumnFilters(column));
+
+  $$LawsTableFilterComposer get lawId {
+    final $$LawsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.lawId,
+        referencedTable: $db.laws,
+        getReferencedColumn: (t) => t.lawId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$LawsTableFilterComposer(
+              $db: $db,
+              $table: $db.laws,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
 }
 
 class $$ArticlesTableOrderingComposer
@@ -3829,9 +4469,6 @@ class $$ArticlesTableOrderingComposer
   });
   ColumnOrderings<int> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get lawId => $composableBuilder(
-      column: $table.lawId, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get revisionId => $composableBuilder(
       column: $table.revisionId, builder: (column) => ColumnOrderings(column));
@@ -3867,6 +4504,26 @@ class $$ArticlesTableOrderingComposer
 
   ColumnOrderings<String> get bodyJson => $composableBuilder(
       column: $table.bodyJson, builder: (column) => ColumnOrderings(column));
+
+  $$LawsTableOrderingComposer get lawId {
+    final $$LawsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.lawId,
+        referencedTable: $db.laws,
+        getReferencedColumn: (t) => t.lawId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$LawsTableOrderingComposer(
+              $db: $db,
+              $table: $db.laws,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
 }
 
 class $$ArticlesTableAnnotationComposer
@@ -3880,9 +4537,6 @@ class $$ArticlesTableAnnotationComposer
   });
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
-
-  GeneratedColumn<String> get lawId =>
-      $composableBuilder(column: $table.lawId, builder: (column) => column);
 
   GeneratedColumn<String> get revisionId => $composableBuilder(
       column: $table.revisionId, builder: (column) => column);
@@ -3916,6 +4570,26 @@ class $$ArticlesTableAnnotationComposer
 
   GeneratedColumn<String> get bodyJson =>
       $composableBuilder(column: $table.bodyJson, builder: (column) => column);
+
+  $$LawsTableAnnotationComposer get lawId {
+    final $$LawsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.lawId,
+        referencedTable: $db.laws,
+        getReferencedColumn: (t) => t.lawId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$LawsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.laws,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
 }
 
 class $$ArticlesTableTableManager extends RootTableManager<
@@ -3927,9 +4601,9 @@ class $$ArticlesTableTableManager extends RootTableManager<
     $$ArticlesTableAnnotationComposer,
     $$ArticlesTableCreateCompanionBuilder,
     $$ArticlesTableUpdateCompanionBuilder,
-    (Article, BaseReferences<_$AppDatabase, $ArticlesTable, Article>),
+    (Article, $$ArticlesTableReferences),
     Article,
-    PrefetchHooks Function()> {
+    PrefetchHooks Function({bool lawId})> {
   $$ArticlesTableTableManager(_$AppDatabase db, $ArticlesTable table)
       : super(TableManagerState(
           db: db,
@@ -4001,9 +4675,43 @@ class $$ArticlesTableTableManager extends RootTableManager<
             bodyJson: bodyJson,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map((e) =>
+                  (e.readTable(table), $$ArticlesTableReferences(db, table, e)))
               .toList(),
-          prefetchHooksCallback: null,
+          prefetchHooksCallback: ({lawId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (lawId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.lawId,
+                    referencedTable: $$ArticlesTableReferences._lawIdTable(db),
+                    referencedColumn:
+                        $$ArticlesTableReferences._lawIdTable(db).lawId,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
         ));
 }
 
@@ -4016,9 +4724,9 @@ typedef $$ArticlesTableProcessedTableManager = ProcessedTableManager<
     $$ArticlesTableAnnotationComposer,
     $$ArticlesTableCreateCompanionBuilder,
     $$ArticlesTableUpdateCompanionBuilder,
-    (Article, BaseReferences<_$AppDatabase, $ArticlesTable, Article>),
+    (Article, $$ArticlesTableReferences),
     Article,
-    PrefetchHooks Function()>;
+    PrefetchHooks Function({bool lawId})>;
 typedef $$SyncRunsTableCreateCompanionBuilder = SyncRunsCompanion Function({
   Value<int> id,
   required String startedAt,
@@ -4345,6 +5053,256 @@ typedef $$AppMetaTableProcessedTableManager = ProcessedTableManager<
     (AppMetaData, BaseReferences<_$AppDatabase, $AppMetaTable, AppMetaData>),
     AppMetaData,
     PrefetchHooks Function()>;
+typedef $$BookmarksTableCreateCompanionBuilder = BookmarksCompanion Function({
+  Value<int> id,
+  required String lawId,
+  Value<String?> articleNum,
+  required String createdAt,
+});
+typedef $$BookmarksTableUpdateCompanionBuilder = BookmarksCompanion Function({
+  Value<int> id,
+  Value<String> lawId,
+  Value<String?> articleNum,
+  Value<String> createdAt,
+});
+
+final class $$BookmarksTableReferences
+    extends BaseReferences<_$AppDatabase, $BookmarksTable, Bookmark> {
+  $$BookmarksTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $LawsTable _lawIdTable(_$AppDatabase db) =>
+      db.laws.createAlias('bookmarks__law_id__laws__law_id');
+
+  $$LawsTableProcessedTableManager get lawId {
+    final $_column = $_itemColumn<String>('law_id')!;
+
+    final manager = $$LawsTableTableManager($_db, $_db.laws)
+        .filter((f) => f.lawId.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_lawIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
+class $$BookmarksTableFilterComposer
+    extends Composer<_$AppDatabase, $BookmarksTable> {
+  $$BookmarksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get articleNum => $composableBuilder(
+      column: $table.articleNum, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  $$LawsTableFilterComposer get lawId {
+    final $$LawsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.lawId,
+        referencedTable: $db.laws,
+        getReferencedColumn: (t) => t.lawId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$LawsTableFilterComposer(
+              $db: $db,
+              $table: $db.laws,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$BookmarksTableOrderingComposer
+    extends Composer<_$AppDatabase, $BookmarksTable> {
+  $$BookmarksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get articleNum => $composableBuilder(
+      column: $table.articleNum, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  $$LawsTableOrderingComposer get lawId {
+    final $$LawsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.lawId,
+        referencedTable: $db.laws,
+        getReferencedColumn: (t) => t.lawId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$LawsTableOrderingComposer(
+              $db: $db,
+              $table: $db.laws,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$BookmarksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BookmarksTable> {
+  $$BookmarksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get articleNum => $composableBuilder(
+      column: $table.articleNum, builder: (column) => column);
+
+  GeneratedColumn<String> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$LawsTableAnnotationComposer get lawId {
+    final $$LawsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.lawId,
+        referencedTable: $db.laws,
+        getReferencedColumn: (t) => t.lawId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$LawsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.laws,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$BookmarksTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $BookmarksTable,
+    Bookmark,
+    $$BookmarksTableFilterComposer,
+    $$BookmarksTableOrderingComposer,
+    $$BookmarksTableAnnotationComposer,
+    $$BookmarksTableCreateCompanionBuilder,
+    $$BookmarksTableUpdateCompanionBuilder,
+    (Bookmark, $$BookmarksTableReferences),
+    Bookmark,
+    PrefetchHooks Function({bool lawId})> {
+  $$BookmarksTableTableManager(_$AppDatabase db, $BookmarksTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BookmarksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BookmarksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BookmarksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String> lawId = const Value.absent(),
+            Value<String?> articleNum = const Value.absent(),
+            Value<String> createdAt = const Value.absent(),
+          }) =>
+              BookmarksCompanion(
+            id: id,
+            lawId: lawId,
+            articleNum: articleNum,
+            createdAt: createdAt,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required String lawId,
+            Value<String?> articleNum = const Value.absent(),
+            required String createdAt,
+          }) =>
+              BookmarksCompanion.insert(
+            id: id,
+            lawId: lawId,
+            articleNum: articleNum,
+            createdAt: createdAt,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable(table),
+                    $$BookmarksTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: ({lawId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (lawId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.lawId,
+                    referencedTable: $$BookmarksTableReferences._lawIdTable(db),
+                    referencedColumn:
+                        $$BookmarksTableReferences._lawIdTable(db).lawId,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$BookmarksTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $BookmarksTable,
+    Bookmark,
+    $$BookmarksTableFilterComposer,
+    $$BookmarksTableOrderingComposer,
+    $$BookmarksTableAnnotationComposer,
+    $$BookmarksTableCreateCompanionBuilder,
+    $$BookmarksTableUpdateCompanionBuilder,
+    (Bookmark, $$BookmarksTableReferences),
+    Bookmark,
+    PrefetchHooks Function({bool lawId})>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -4358,4 +5316,6 @@ class $AppDatabaseManager {
       $$SyncRunsTableTableManager(_db, _db.syncRuns);
   $$AppMetaTableTableManager get appMeta =>
       $$AppMetaTableTableManager(_db, _db.appMeta);
+  $$BookmarksTableTableManager get bookmarks =>
+      $$BookmarksTableTableManager(_db, _db.bookmarks);
 }

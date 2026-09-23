@@ -96,6 +96,36 @@ class AppMeta extends Table {
   Set<Column> get primaryKey => {key};
 }
 
+/// `article_num` が NULL なら法令そのもの。
+/// 条の行 ID ではなく条番号で持つのは、本文を取り直すと条の行は全部作り直され、
+/// ID が変わるため。
+class Bookmarks extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get lawId => text().references(Laws, #lawId)();
+  TextColumn get articleNum => text().nullable()();
+  TextColumn get createdAt => text()();
+}
+
+/// 条名・見出しが null になるのは、本文を保存していない法令の条をブックマークしたとき。
+class BookmarkEntry {
+  const BookmarkEntry({
+    required this.id,
+    required this.lawId,
+    required this.lawTitle,
+    required this.createdAt,
+    this.articleNum,
+    this.articleTitle,
+    this.caption,
+  });
+  final int id;
+  final String lawId;
+  final String lawTitle;
+  final String createdAt;
+  final String? articleNum;
+  final String? articleTitle;
+  final String? caption;
+}
+
 /// 条の保存用 DTO（Isolate から返せるように文字列だけで構成）。
 class ArticleRow {
   const ArticleRow({
@@ -221,12 +251,13 @@ _FullTextFilter? _fullTextFilter(FtsQuery q,
   );
 }
 
-@DriftDatabase(tables: [Laws, LawRevisions, Articles, SyncRuns, AppMeta])
+@DriftDatabase(
+    tables: [Laws, LawRevisions, Articles, SyncRuns, AppMeta, Bookmarks])
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -247,6 +278,7 @@ class AppDatabase extends _$AppDatabase {
             await customStatement(
                 "INSERT INTO articles_fts(articles_fts) VALUES ('rebuild')");
           }
+          if (from < 3) await m.createTable(bookmarks);
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
@@ -453,6 +485,68 @@ class AppDatabase extends _$AppDatabase {
           bodyIncludesAmendSuppl: Value(false),
         ));
       });
+
+  // ------------------------------------------------------------ bookmarks
+
+  /// 条の行と外部結合するのは、本文を保存していない法令の条もブックマークでき、
+  /// そのときは条名なしで一覧に出すため。
+  Stream<List<BookmarkEntry>> watchBookmarks() {
+    final q = select(bookmarks).join([
+      innerJoin(laws, laws.lawId.equalsExp(bookmarks.lawId)),
+      leftOuterJoin(
+          articles,
+          articles.lawId.equalsExp(bookmarks.lawId) &
+              articles.articleNum.equalsExp(bookmarks.articleNum) &
+              articles.section.equals('main')),
+    ])
+      ..orderBy([OrderingTerm.desc(bookmarks.createdAt)]);
+    return q.watch().map((rows) => [
+          for (final r in rows)
+            BookmarkEntry(
+              id: r.readTable(bookmarks).id,
+              lawId: r.readTable(bookmarks).lawId,
+              lawTitle: r.readTable(laws).title,
+              createdAt: r.readTable(bookmarks).createdAt,
+              articleNum: r.readTable(bookmarks).articleNum,
+              articleTitle: r.readTableOrNull(articles)?.articleTitle,
+              caption: r.readTableOrNull(articles)?.caption,
+            ),
+        ]);
+  }
+
+  SimpleSelectStatement<$BookmarksTable, Bookmark> _bookmarkOf(
+          String lawId, String? articleNum) =>
+      select(bookmarks)
+        ..where((t) =>
+            t.lawId.equals(lawId) &
+            (articleNum == null
+                ? t.articleNum.isNull()
+                : t.articleNum.equals(articleNum)));
+
+  Stream<bool> watchIsBookmarked(String lawId, String? articleNum) =>
+      _bookmarkOf(lawId, articleNum).watchSingleOrNull().map((b) => b != null);
+
+  /// 追加と削除を分けずトグルにし、トランザクションで囲むのは、連打で同じ条に
+  /// 2 行入るのを防ぐため。戻り値は付いた後の状態。
+  Future<bool> toggleBookmark(String lawId,
+          {String? articleNum, required String at}) =>
+      transaction(() async {
+        final existing = await _bookmarkOf(lawId, articleNum).getSingleOrNull();
+        if (existing != null) {
+          await (delete(bookmarks)..where((t) => t.id.equals(existing.id)))
+              .go();
+          return false;
+        }
+        await into(bookmarks).insert(BookmarksCompanion.insert(
+            lawId: lawId, articleNum: Value(articleNum), createdAt: at));
+        return true;
+      });
+
+  Future<void> removeBookmark(int id) =>
+      (delete(bookmarks)..where((t) => t.id.equals(id))).go();
+
+  Future<Set<String>> bookmarkedLawIds() async =>
+      {for (final b in await select(bookmarks).get()) b.lawId};
 
   // ------------------------------------------------------ full-text search
 

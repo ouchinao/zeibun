@@ -7,6 +7,7 @@ import 'package:zeibun_core/zeibun_core.dart';
 
 import 'data/db/database.dart';
 import 'data/egov/egov_api.dart';
+import 'data/repositories/bookmark_repository.dart';
 import 'data/repositories/law_repository.dart';
 import 'data/repositories/prefetch_service.dart';
 import 'data/repositories/search_repository.dart';
@@ -34,6 +35,9 @@ final lawRepositoryProvider = Provider<LawRepository>((ref) => LawRepository(
       api: ref.watch(egovApiProvider),
       db: ref.watch(databaseProvider),
     ));
+
+final bookmarkRepositoryProvider = Provider<BookmarkRepository>(
+    (ref) => BookmarkRepository(db: ref.watch(databaseProvider)));
 
 final syncServiceProvider = Provider<SyncService>((ref) {
   final repo = ref.watch(lawRepositoryProvider);
