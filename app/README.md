@@ -25,7 +25,7 @@ lib/
 │   ├── bookmarks/   ブックマークの Provider、ホームの一覧、法令画面のしおりボタン
 │   ├── search/      検索結果（条番号ジャンプの候補を含む）
 │   ├── law_list/    法令一覧（分類・種別、末尾に「廃止・失効（参考）」）
-│   ├── law_viewer/  閲覧。law_page（枠・本文内検索）、main_tab / suppl_tab / revisions_tab、
+│   ├── law_viewer/  閲覧。law_page（枠）、in_text_search（本文内検索の一致計算）、main_tab / suppl_tab / revisions_tab、
 │   │                toc_drawer、article_menu、law_text（画面用モデル）、law_node_renderer
 │   ├── sync/        同期状態バナー
 │   └── settings/    設定の Notifier（SharedPreferences）、設定画面、全法令を端末に保存する画面
