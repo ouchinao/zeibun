@@ -41,7 +41,7 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
-      - uses: browser-actions/setup-chrome@v1
+      - uses: browser-actions/setup-chrome@v2
       - run: dart pub get
       # フィクスチャを読むテストは @TestOn('vm') で自ら外れるので、ファイルを列挙しない
       - run: dart test --platform chrome
