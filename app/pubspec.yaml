@@ -12,7 +12,7 @@ dependencies:
   zeibun_core:
     path: ../packages/zeibun_core
   flutter_riverpod: ^2.6.1
-  go_router: ^14.6.0
+  go_router: ^18.0.1
   dio: ^5.7.0
   drift: ^2.22.0
   drift_flutter: ^0.3.1
