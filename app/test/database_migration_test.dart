@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zeibun/data/db/database.dart';
 import 'package:zeibun_core/zeibun_core.dart';
 
-/// スキーマ v1（全文索引なし）の DB を作るための最小構成。
+/// スキーマ v1（全文索引なし・ブックマークなし）の DB を作るための最小構成。
 class _V1Database extends AppDatabase {
   _V1Database(super.executor);
 
@@ -14,8 +14,17 @@ class _V1Database extends AppDatabase {
   int get schemaVersion => 1;
 
   @override
-  MigrationStrategy get migration =>
-      MigrationStrategy(onCreate: (m) => m.createAll());
+  MigrationStrategy get migration => MigrationStrategy(onCreate: (m) async {
+        for (final t in <TableInfo>[
+          laws,
+          lawRevisions,
+          articles,
+          syncRuns,
+          appMeta
+        ]) {
+          await m.createTable(t);
+        }
+      });
 }
 
 void main() {
@@ -24,8 +33,9 @@ void main() {
   setUp(() async => dir = await Directory.systemTemp.createTemp('zeibun_db'));
   tearDown(() => dir.delete(recursive: true));
 
-  test('upgrading from schema 1 indexes the bodies that were already saved',
-      () async {
+  test(
+      'upgrading from schema 1 indexes the bodies that were already saved '
+      'and adds the bookmarks table', () async {
     final file = File('${dir.path}/zeibun.sqlite');
 
     final v1 = _V1Database(NativeDatabase(file));
@@ -58,10 +68,15 @@ void main() {
     );
     await v1.close();
 
-    final v2 = AppDatabase(NativeDatabase(file));
-    final hits = await v2.searchFullText(FtsQuery.parse('課税標準'));
+    final v3 = AppDatabase(NativeDatabase(file));
+    final hits = await v3.searchFullText(FtsQuery.parse('課税標準'));
     expect(hits.single.articleNum, '1');
     expect(hits.single.snippet, contains('課税標準'));
-    await v2.close();
+    expect(
+        await v3.toggleBookmark('426AC0000000011',
+            articleNum: '1', at: '2026-09-23T00:00:00'),
+        isTrue);
+    expect((await v3.watchBookmarks().first).single.articleTitle, '第一条');
+    await v3.close();
   });
 }

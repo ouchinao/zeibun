@@ -114,6 +114,26 @@ void main() {
   });
 
   test(
+      'prefetchRevised refetches a bookmarked law that is neither major nor '
+      'recently opened', () async {
+    const kanzei = '143AC0000000054'; // 関税定率法（majorTaxLaws に無い）
+    final law = (await db.getLaw(kanzei))!;
+    serveBody(law.currentRevisionId!);
+    await repo().openLaw(kanzei);
+    api.calls.clear();
+    now = now.add(const Duration(days: 40));
+    const change =
+        CatalogChange(lawId: kanzei, kind: CatalogChangeKind.revised);
+
+    await repo().prefetchRevised(const [change]);
+    expect(api.calls, isEmpty, reason: '主要法令でも最近開いた法令でもない');
+
+    await db.toggleBookmark(kanzei, articleNum: '1', at: now.toIso8601String());
+    await repo().prefetchRevised(const [change]);
+    expect(api.calls.single.path, '/api/2/law_data/${law.currentRevisionId}');
+  });
+
+  test(
       'refreshRevisions stores the history, reuses it for 10 minutes, '
       'and falls back to it offline', () async {
     api.onPath('/api/2/law_revisions/340AC0000000034',

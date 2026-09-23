@@ -18,9 +18,11 @@ lib/
 │       ├── sync_service.dart     起動時同期・手動更新（§4.2）、バックオフ（§4.6）、二重実行の抑止
 │       ├── law_repository.dart   本文の取得・検証・キャッシュ（§4.5）、改正時の先読み、改正履歴
 │       ├── prefetch_service.dart 全法令の保存（§4.4）: 逐次取得・進捗・中断・通信失敗での打ち切り
+│       ├── bookmark_repository.dart ブックマークの登録・解除・一覧（時刻の付与）
 │       └── search_repository.dart 法令名検索・略称展開・条番号ジャンプ・横断全文検索（§6）
 ├── features/                    画面（機能単位）
-│   ├── home/        検索窓・同期バナー・最近開いた法令・主要税法・初回免責
+│   ├── home/        検索窓・同期バナー・最近開いた法令・ブックマーク・主要税法・初回免責
+│   ├── bookmarks/   ブックマークの Provider、ホームの一覧、法令画面のしおりボタン
 │   ├── search/      検索結果（条番号ジャンプの候補を含む）
 │   ├── law_list/    法令一覧（分類・種別、末尾に「廃止・失効（参考）」）
 │   ├── law_viewer/  閲覧。law_page（枠・本文内検索）、main_tab / suppl_tab / revisions_tab、

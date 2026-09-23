@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:zeibun_core/zeibun_core.dart';
 
+import '../../data/db/database.dart';
 import '../../providers.dart';
+import '../bookmarks/bookmark_law_button.dart';
+import '../bookmarks/bookmark_providers.dart';
 import 'article_menu.dart';
 import 'law_body_controller.dart';
 import 'law_text.dart';
@@ -111,6 +114,25 @@ class _LawPageState extends ConsumerState<LawPage>
     });
   }
 
+  /// ブックマークの現在値をメニューを開く前に読むのは、メニューの項目名を
+  /// 「追加」「外す」で出し分けるため。
+  Future<void> _openArticleMenu(Law law, ArticleItem a) async {
+    final num = a.articleNum;
+    BookmarkOption? bookmark;
+    if (num != null) {
+      final active = await ref.read(
+          isBookmarkedProvider((lawId: law.lawId, articleNum: num)).future);
+      bookmark = (
+        active: active,
+        toggle: () => ref
+            .read(bookmarkRepositoryProvider)
+            .toggle(law.lawId, articleNum: num),
+      );
+    }
+    if (!mounted) return;
+    await showArticleMenu(context, law: law, article: a, bookmark: bookmark);
+  }
+
   void _toggleSearch() {
     setState(() {
       if (_search == null) {
@@ -178,6 +200,7 @@ class _LawPageState extends ConsumerState<LawPage>
       appBar: AppBar(
         title: Text(law?.title ?? '読み込み中…', overflow: TextOverflow.ellipsis),
         actions: [
+          BookmarkLawButton(lawId: widget.lawId),
           IconButton(
             icon: Icon(search == null ? Icons.search : Icons.search_off),
             tooltip: '本文内検索',
@@ -218,8 +241,7 @@ class _LawPageState extends ConsumerState<LawPage>
                 text: textAsync,
                 highlight: search?.terms ?? const [],
                 scrollController: _mainScroll,
-                onLongPress: (a) =>
-                    showArticleMenu(context, law: law, article: a),
+                onLongPress: (a) => _openArticleMenu(law, a),
                 onRetry: () =>
                     ref.read(lawBodyProvider(widget.lawId).notifier).refresh(),
               ),

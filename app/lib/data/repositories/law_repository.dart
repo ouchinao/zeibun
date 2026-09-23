@@ -129,6 +129,7 @@ class LawRepository {
   Future<void> prefetchRevised(Iterable<CatalogChange> changes) async {
     final cutoff =
         _clock().subtract(const Duration(days: 30)).toIso8601String();
+    final bookmarked = await db.bookmarkedLawIds();
     for (final c in changes) {
       final law = await db.getLaw(c.lawId);
       final rev = law?.currentRevisionId;
@@ -136,7 +137,10 @@ class LawRepository {
         continue;
       }
       final recent = (law.lastOpenedAt ?? '').compareTo(cutoff) > 0;
-      if (!majorTaxLaws.containsKey(c.lawId) && !recent) continue;
+      final wanted = majorTaxLaws.containsKey(c.lawId) ||
+          recent ||
+          bookmarked.contains(c.lawId);
+      if (!wanted) continue;
       try {
         await fetchBody(c.lawId, rev,
             includeAmendSuppl: law.bodyIncludesAmendSuppl);
