@@ -54,3 +54,7 @@ flutter build web --release   # Web 版は当面出さないが、動く状態�
 
 法令データは [e-Gov法令検索](https://laws.e-gov.go.jp/)（デジタル庁）の法令API Version 2 から取得。
 本アプリはデジタル庁・e-Gov の公式アプリではない。
+
+## ライセンス
+
+権利留保（リポジトリ直下の [LICENSE](../LICENSE)）。閲覧・参照はできるが、再配布・ストア公開・商用利用はできない。

@@ -1,21 +1,39 @@
-MIT License
+Copyright (c) 2026 ouchinao. All rights reserved.
 
-Copyright (c) 2026 ouchinao
+このリポジトリのソースコード・アセット・ドキュメントは、閲覧と参照のために公開して
+いますが、著作権者の書面による許諾なく、複製・改変・再配布・アプリストアその他への
+公開・商用利用することはできません。
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+- 「zeibun」の名称・アイコン・ストア掲載物も同様に、無断で使用できません。
+- 依存するオープンソースソフトウェアは、それぞれのライセンスに従います
+  （アプリ内の「オープンソースライセンス」に一覧があります）。
+- 法令データはデジタル庁 e-Gov法令検索の法令API から取得したもので、公共データ
+  利用規約（PDL1.0）に従います。docs/lawapi-v2.yaml はデジタル庁が公開している
+  API 仕様の写しです。本アプリはデジタル庁・e-Gov の公式アプリではありません。
+- 2026-09-23 より前にこのリポジトリで公開されたバージョンは、当時の MIT License の
+  条件のまま利用できます。この変更はそれらを取り消すものではありません。
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+問い合わせ: https://github.com/ouchinao/zeibun/issues
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+---
+
+Copyright (c) 2026 ouchinao. All rights reserved.
+
+The source code, assets and documents in this repository are published for
+reading and reference only. Without prior written permission from the
+copyright holder you may not copy, modify, redistribute, publish to an app
+store or elsewhere, or use them commercially.
+
+- The name "zeibun", its icon and store listings may likewise not be used
+  without permission.
+- Open-source software this project depends on remains under its own
+  licenses (listed under "Open source licenses" inside the app).
+- Law data is retrieved from the Digital Agency's e-Gov Law Search API under
+  the Public Data License (PDL1.0). docs/lawapi-v2.yaml is a copy of the API
+  specification published by the Digital Agency. This app is not an official
+  app of the Digital Agency or e-Gov.
+- Versions published from this repository before 2026-09-23 remain available
+  under the MIT License as it applied at the time; this change does not
+  revoke them.
+
+Contact: https://github.com/ouchinao/zeibun/issues

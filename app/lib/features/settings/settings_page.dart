@@ -113,7 +113,8 @@ class SettingsPage extends ConsumerWidget {
             onTap: () => showLicensePage(
               context: context,
               applicationName: 'zeibun',
-              applicationLegalese: '法令データ: e-Gov法令検索（公共データ利用規約 PDL1.0）',
+              applicationLegalese: '© 2026 ouchinao\n'
+                  '法令データ: e-Gov法令検索（公共データ利用規約 PDL1.0）',
             ),
           ),
         ],
