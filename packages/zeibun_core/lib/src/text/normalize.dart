@@ -123,6 +123,16 @@ ArticleReference? parseArticleReference(String input) {
   );
 }
 
+/// `FtsQuery` の中に閉じ込めないのは、本文内検索も同じ分け方をするため。
+/// 分け方が違うと横断検索のヒットが本文内で見つからないことが起きる。
+List<String> splitSearchTerms(String input) {
+  final seen = <String>{};
+  return List.unmodifiable([
+    for (final t in normalizeForSearch(input).split(RegExp(r'\s+')))
+      if (t.isNotEmpty && seen.add(t)) t,
+  ]);
+}
+
 /// `42_12_5` → `第42条の12の5`。枝番ごとに「条」を付けないのは、実務の表記が
 /// 「第42条の12の5」であって「第42条の第12条…」ではないため。
 String articleNumDisplay(String num) {

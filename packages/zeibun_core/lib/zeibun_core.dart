@@ -17,5 +17,6 @@ export 'src/catalog/law_summary.dart';
 export 'src/law/law_node.dart';
 export 'src/law/law_parser.dart';
 export 'src/sync/catalog_diff.dart';
+export 'src/text/fts_query.dart';
 export 'src/text/law_abbrev.dart';
 export 'src/text/normalize.dart';

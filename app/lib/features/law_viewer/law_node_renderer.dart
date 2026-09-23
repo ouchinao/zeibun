@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:zeibun_core/zeibun_core.dart';
 
+import '../../util/highlight.dart';
+
 /// 条のサブツリー（`body_json`）を Widget に変換する。
 ///
 /// WebView や HTML 変換を使わないのは、外部由来のテキストをマークアップとして
@@ -10,12 +12,12 @@ import 'package:zeibun_core/zeibun_core.dart';
 /// と括弧書きにするのは、`Text.rich` にルビが無く `WidgetSpan` で組むと行間が
 /// 崩れるから。未知のタグは子要素をそのまま描くだけで例外にしない。
 class LawNodeRenderer extends StatelessWidget {
-  const LawNodeRenderer(this.node, {super.key, this.highlight});
+  const LawNodeRenderer(this.node, {super.key, this.highlight = const []});
 
   final LawNode node;
 
   /// 本文内検索のハイライト語（幅正規化済み、小文字）。
-  final String? highlight;
+  final List<String> highlight;
 
   @override
   Widget build(BuildContext context) =>
@@ -28,7 +30,7 @@ class _Renderer {
         scheme = Theme.of(context).colorScheme;
 
   final BuildContext context;
-  final String? highlight;
+  final List<String> highlight;
   final TextStyle base;
   final ColorScheme scheme;
 
@@ -286,7 +288,10 @@ class _Renderer {
                 style: prefixBold
                     ? base.copyWith(fontWeight: FontWeight.bold)
                     : base),
-          ..._highlighted(text),
+          ...highlightSpans(text, highlight,
+              style: TextStyle(
+                  backgroundColor: scheme.tertiaryContainer,
+                  fontWeight: FontWeight.bold)),
         ]),
         style: base,
       ),
@@ -315,28 +320,5 @@ class _Renderer {
       }
       first = false;
     }
-  }
-
-  List<InlineSpan> _highlighted(String text) {
-    final h = highlight;
-    if (h == null || h.isEmpty) return [TextSpan(text: text)];
-    // trim する normalizeForSearch だと先頭の空白分だけ位置がずれるので、幅と大小文字だけ揃える
-    final norm = normalizeForMatch(text);
-    final spans = <InlineSpan>[];
-    var start = 0;
-    while (true) {
-      final i = norm.indexOf(h, start);
-      if (i < 0) break;
-      if (i > start) spans.add(TextSpan(text: text.substring(start, i)));
-      spans.add(TextSpan(
-        text: text.substring(i, i + h.length),
-        style: TextStyle(
-            backgroundColor: scheme.tertiaryContainer,
-            fontWeight: FontWeight.bold),
-      ));
-      start = i + h.length;
-    }
-    if (start < text.length) spans.add(TextSpan(text: text.substring(start)));
-    return spans;
   }
 }

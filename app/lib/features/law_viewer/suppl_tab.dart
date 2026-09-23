@@ -16,7 +16,7 @@ class SupplTab extends StatelessWidget {
   final Law law;
   final List<SupplGroup> groups;
   final bool loading;
-  final String? highlight;
+  final List<String> highlight;
   final VoidCallback onLoadAmendSuppl;
 
   @override

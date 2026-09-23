@@ -49,6 +49,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => LawPage(
           lawId: state.pathParameters['lawId']!,
           initialTab: state.uri.queryParameters['tab'],
+          initialQuery: _searchQueryOf(state),
         ),
         routes: [
           GoRoute(
@@ -57,6 +58,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (_, state) => LawPage(
               lawId: state.pathParameters['lawId']!,
               articleNum: state.pathParameters['num'],
+              initialQuery: _searchQueryOf(state),
             ),
           ),
         ],
@@ -64,6 +66,14 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+/// `q` を他のパラメータのように形式で検証しないのは、本文内検索の語にしか
+/// 使わず SQL にも URL にも渡さないため。外部 URL からも来るので長さだけ抑える。
+String? _searchQueryOf(GoRouterState state) {
+  final q = state.uri.queryParameters['q']?.trim();
+  if (q == null || q.isEmpty) return null;
+  return q.length > 100 ? q.substring(0, 100) : q;
+}
 
 /// 外部から開かれる URL のパラメータを検証する。不正なら一覧へ戻す。
 String? _validateLawRoute(BuildContext context, GoRouterState state) {
