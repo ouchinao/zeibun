@@ -151,8 +151,8 @@ class _Empty extends StatelessWidget {
         padding: EdgeInsets.all(24),
         child: Text(
           '該当する条文がありません。\n\n'
-          '本文の検索は端末に保存した法令が対象です。開いたことのない法令は対象外なので、'
-          '設定の「全法令を端末に保存」で対象を広げられます。',
+          '本文の検索は端末に保存した法令（一度開いた法令）が対象です。'
+          '開いたことのない法令の条文は見つかりません。',
           textAlign: TextAlign.center,
         ),
       );
