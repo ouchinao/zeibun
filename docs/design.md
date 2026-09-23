@@ -8,7 +8,7 @@
 | # | 決定 | 内容 |
 |---|---|---|
 | 1 | 改正附則は**既定で除いて取得**（案 A） | 初回表示を軽くする。附則タブの「改正附則を読み込む」を 1 回タップすると全文を取り直し、以後はキャッシュから表示 |
-| 2 | **MVP はモバイル（iOS / Android）のみ** | Web は Phase 3 以降の候補。CORS は問題ないので中継サーバは不要だが、広告を載せる前提なら COOP/COEP ヘッダを設定できるホスティング（Cloudflare Pages 等）を使う。`lib/data` に `dart:io` を入れない方針は維持し、Web への道は残す |
+| 2 | **MVP はモバイル（iOS / Android）のみ。Web 版は当面作らない** | デスクトップで見るなら e-Gov 法令検索で足りる。ただし **CI で Web ビルドと Chrome 上のテストを維持**し、判断を変えたときに着手できる状態を保つ。CORS は問題なく中継サーバは不要。広告付きで公開するなら COOP/COEP を設定できるホスティング（Cloudflare Pages 等） |
 | 3 | 廃止・失効した税法は**「参考」として一覧に載せる** | 63 件。別グループ・「廃止」バッジ |
 
 ### v0.3 からの変更点（Phase 0 実測による）
@@ -327,7 +327,7 @@ Phase 2 の索引は本文の 2〜3 倍になり得る。既定の取得（改�
 | モデル | `freezed` + `json_serializable` | |
 | 正規化 | `unorm_dart`（NFKC） | 全角半角の揺れ吸収 |
 | テスト | `flutter_test`, `mocktail`, drift の `NativeDatabase.memory()` | |
-| CI | GitHub Actions: `flutter analyze` / `flutter test` / `dart format --set-exit-if-changed` / `dart pub outdated` の定期確認 | |
+| CI | GitHub Actions: `flutter analyze` / `flutter test` / `dart format --set-exit-if-changed` / **`flutter build web --release`** / **`flutter test --platform chrome`（`lib/data` と `lib/core` のテスト）** / `dart pub outdated` の定期確認 | Web を出さなくても Web で動く状態を保つ。`dart:io` の混入や Web 非対応パッケージの追加をここで止める |
 
 **Web について**: e-Gov API は `/laws`・`/law_data`・`/law_revisions`・`/keyword`・`/law_file` のすべてと OPTIONS プリフライトで `access-control-allow-origin: *` を返す（2026-09-23 実測）。中継サーバは不要で、静的ホスティングだけで動く。ただし次の制約がある。
 
@@ -340,7 +340,7 @@ Phase 2 の索引は本文の 2〜3 倍になり得る。既定の取得（改�
 | ライブラリ | `dart:io` 不可。`dio`・`xml`・`drift`・`go_router`・`unorm_dart` は Web 対応 | `lib/data` から `dart:io` を排除（スパイクの `EgovClient` は `dart:io` なので `dio` 版に置き換える） |
 | 容量 | Phase 2 の全件先読み（数百 MB）は Safari の割当てを超える | Web では先読みを提供しない |
 
-中継サーバや Web 固有のライブラリ制限で「できない」ものは無い。増えるのはホスティングの選定、Worker、フォント同梱、Safari の永続性の 4 点で、いずれもモバイル版の設計を変えずに後から足せる。**MVP はモバイルのみ**とし（Web で見るなら e-Gov 法令検索を直接使う人が多いという判断）、Web は Phase 3 以降に広告付きで公開する候補として残す。その場合は COOP/COEP を設定できる Cloudflare Pages 等を使う（GitHub Pages は不可）。
+中継サーバや Web 固有のライブラリ制限で「できない」ものは無い。増えるのはホスティングの選定、Worker、フォント同梱、Safari の永続性の 4 点で、いずれもモバイル版の設計を変えずに後から足せる。**MVP はモバイルのみとし、Web 版は当面作らない。** デスクトップで条文を見るなら e-Gov 法令検索が検索・時点指定・全文検索まで備えており、本アプリの強み（オフライン、起動時の改正検知、税法特化の略称ジャンプ）は Web では薄い。ただし CI で `flutter build web` と Chrome 上のテストを回し、Web で動く状態は維持する。将来出す場合は COOP/COEP を設定できる Cloudflare Pages 等を使う（GitHub Pages は不可）。
 
 ## 10. 品質・運用上の設計
 
@@ -437,7 +437,7 @@ Dart パース計測（Dart 3.13 VM、Linux x86_64、best of 2。`spike/bin/spik
 
 ### Phase 1: MVP
 
-- プロジェクト雛形、CI、API クライアント、DB、パーサ（スパイクから移植）
+- プロジェクト雛形、CI（`analyze` / `test` / `format` / `build web` / Chrome テスト）、API クライアント、DB、パーサ（スパイクから移植）
 - 起動時同期（§4）、同期バナー、「改正あり」「施行予定」バッジ
 - 法令一覧、法令名検索（略称辞書）、条番号ジャンプ
 - 法令閲覧: 最新本文の取得・キャッシュ、目次、条アンカー、本文内検索
@@ -450,13 +450,12 @@ Dart パース計測（Dart 3.13 VM、Linux x86_64、best of 2。`spike/bin/spik
 ### Phase 3: 改正まわり・拡張
 
 - 未施行改正の一覧（施行日順）、「今日施行された改正」バナー、時点指定（`asof`）の条文表示、`/keyword` によるスコープ外オンライン検索（`category_cd=013,036` で絞る）、改正前後の差分表示、添付ファイル（`/attachment`）の表示
-- Web 版（§9 の制約表に従う。広告付きで公開するなら COOP/COEP を設定できるホスティング）
+- Web 版は当面作らない（e-Gov 法令検索で足りる）。CI で Web ビルドを維持しているので、必要になれば §9 の制約表に従って着手する
 
 ## 14. 未確定事項・確認したいこと
 
 1. **対象範囲**: 「国税」分類 ＋ 地方税法まわり ＋ 明示 12 件でよいか。関税関係を含めてよいか
-2. **Web の時期**: モバイル MVP の後、どの段階で Web（広告付き）を出すか
-3. **過去条文の必要性**: 時点指定を v1 に入れるか（設計上は Phase 3）
-4. **横断全文検索の必要性と時期**: Phase 2 で数百 MB 規模の先読みを入れるかどうか
+2. **過去条文の必要性**: 時点指定を v1 に入れるか（設計上は Phase 3）
+3. **横断全文検索の必要性と時期**: Phase 2 で数百 MB 規模の先読みを入れるかどうか
 
-決定済み（v0.5）: MVP はモバイルのみ。改正附則は既定で除き、タップで全文を取り直す（案 A）。廃止・失効法令は「参考」として一覧に載せる。
+決定済み（v0.5）: MVP はモバイルのみで Web 版は当面作らない（CI で Web ビルドは維持）。改正附則は既定で除き、タップで全文を取り直す（案 A）。廃止・失効法令は「参考」として一覧に載せる。
