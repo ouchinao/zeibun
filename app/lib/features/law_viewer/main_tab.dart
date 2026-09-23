@@ -34,7 +34,7 @@ class MainTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final value = text.valueOrNull;
+    final value = text.value;
     final articles = value?.main ?? const <ArticleItem>[];
     final header = _HeaderCard(law: law, text: value, loading: text.isLoading);
     if (articles.isEmpty) {

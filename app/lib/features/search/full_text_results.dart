@@ -34,7 +34,7 @@ class _FullTextResultsState extends ConsumerState<FullTextResults> {
     return Column(children: [
       _Filters(
         criteria: _criteria,
-        laws: result.valueOrNull?.laws ?? const [],
+        laws: result.value?.laws ?? const [],
         onChanged: (c) => setState(() => _criteria = c),
       ),
       Expanded(

@@ -1,7 +1,13 @@
 # zeibun 設計書 — 税制法令検索アプリ（Flutter × e-Gov 法令API v2）
 
-- 状態: ドラフト v0.6（2026-09-23）— Phase 1 実装済み。Phase 2（横断全文検索）を実装に合わせて更新中
+- 状態: ドラフト v0.7（2026-09-23）— Phase 1・2 実装済み。Phase 3 着手前の基盤更新（Riverpod 3）を反映
 - 関連: [e-Gov 法令API v2 調査メモ](./egov-law-api-v2.md)、[公式 OpenAPI 仕様 v2.1.139](./lawapi-v2.yaml)、[Phase 0 スパイク](../spike/README.md)
+
+### v0.6 からの変更点
+
+| # | 変更 | 根拠 |
+|---|---|---|
+| 1 | 状態管理を `flutter_riverpod` 3.x に更新（§9）。Provider の自動再試行は切る。同期・保存の状態は Service の `ValueNotifier` を `Notifier` に写し、画面は `ref.watch` で見る（Issue #11） | 2.x のまま Phase 3 で Provider を増やすと移行の量が増える。3.x の既定の自動再試行を残すと、失敗の種類ごとに決めた扱い（§4.6）の裏で e-Gov に同じ要求が最大 10 回流れる。`ValueListenableBuilder` を画面から無くし、状態の購読を Riverpod に一本化 |
 
 ### v0.5 からの変更点（Phase 2 の実装に伴う）
 
@@ -352,7 +358,7 @@ CREATE TABLE bookmarks (
 | 領域 | 選定 | 理由 |
 |---|---|---|
 | フレームワーク | Flutter stable / Dart 3 | MVP は iOS / Android。Web 版は当面作らないが CI でビルドを維持（下記）。macOS / Windows も同じコード |
-| 状態管理・DI | `flutter_riverpod`（コード生成なし） | Repository/Service の注入とテスト差し替え。生成器を使わないのは、build_runner を drift だけに留めてビルドを軽くするため |
+| 状態管理・DI | `flutter_riverpod` 3.x（コード生成なし） | Repository/Service の注入とテスト差し替え。生成器を使わないのは、build_runner を drift だけに留めてビルドを軽くするため。3.x 既定の自動再試行は `ProviderScope(retry:)` で切る（失敗の扱いは Repository が種類ごとに決める、§4.6）。Service が持つ `ValueNotifier` は `ListenableStateNotifier` で Provider の状態に写す |
 | ルーティング | `go_router` | 条へのディープリンク `/law/:lawId/article/:num`（`?q=語` で本文内検索を開いた状態にする） |
 | HTTP | `dio` | gzip、タイムアウト、リトライ、キャンセル。Web でも同じコードが動く |
 | XML | `xml` | DOM とイベントストリームの両方。DTD の外部実体を展開しない |
@@ -496,7 +502,7 @@ Dart パース計測（Dart 3.13 VM、Linux x86_64、best of 2。`spike/bin/spik
 ### Phase 2: 横断全文検索
 
 - 対象法令の本文先読み（進捗画面、Wi-Fi 推奨、明示操作）、FTS5 trigram、スニペット、フィルタ、本則/附則切替、ブックマーク
-- **完了**（2026-09-23）: FTS5 索引・横断全文検索（本文タブ、附則切替、法令フィルタ、条への着地と強調）、全法令の保存（明示操作・進捗・中断・モバイル回線の確認）、ブックマーク（法令・条、ホームの一覧、先読み対象）、本文内検索の附則切替。積み残しは Issue に: #11 Riverpod 3 移行、#13 保存中の画面消灯の抑止、#14 空き容量の確認
+- **完了**（2026-09-23）: FTS5 索引・横断全文検索（本文タブ、附則切替、法令フィルタ、条への着地と強調）、全法令の保存（明示操作・進捗・中断・モバイル回線の確認）、ブックマーク（法令・条、ホームの一覧、先読み対象）、本文内検索の附則切替。積み残しは Issue に: #11 Riverpod 3 移行（v0.7 で完了）、#13 保存中の画面消灯の抑止、#14 空き容量の確認
 
 ### Phase 3: 改正まわり・拡張
 

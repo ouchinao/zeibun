@@ -50,18 +50,36 @@ final syncServiceProvider = Provider<SyncService>((ref) {
   );
 });
 
-/// 同期状態（`ValueListenableBuilder` で購読する）。
-final syncStateListenableProvider = Provider<ValueListenable<SyncState>>(
-    (ref) => ref.watch(syncServiceProvider).state);
+/// Service 自体を `Notifier` にせず `ValueNotifier` を写すのは、同期・保存の
+/// ロジックを Riverpod に依存しない純 Dart のままテストするため。
+class ListenableStateNotifier<T> extends Notifier<T> {
+  ListenableStateNotifier(this.source);
+
+  final ValueListenable<T> Function(Ref ref) source;
+
+  @override
+  T build() {
+    final listenable = source(ref);
+    void copy() => state = listenable.value;
+    listenable.addListener(copy);
+    ref.onDispose(() => listenable.removeListener(copy));
+    return listenable.value;
+  }
+}
+
+final syncStateProvider =
+    NotifierProvider<ListenableStateNotifier<SyncState>, SyncState>(() =>
+        ListenableStateNotifier((ref) => ref.watch(syncServiceProvider).state));
 
 final prefetchServiceProvider = Provider<PrefetchService>((ref) =>
     PrefetchService(
         db: ref.watch(databaseProvider),
         repo: ref.watch(lawRepositoryProvider)));
 
-final prefetchStateListenableProvider =
-    Provider<ValueListenable<PrefetchState>>(
-        (ref) => ref.watch(prefetchServiceProvider).state);
+final prefetchStateProvider =
+    NotifierProvider<ListenableStateNotifier<PrefetchState>, PrefetchState>(
+        () => ListenableStateNotifier(
+            (ref) => ref.watch(prefetchServiceProvider).state));
 
 /// 一覧が変わるたびに数え直す（保存が進めば減る）。
 final prefetchTargetCountProvider =
@@ -111,8 +129,8 @@ final recentLawsProvider = Provider<AsyncValue<List<Law>>>((ref) => ref
 
 /// 略称索引は一覧が変わったときだけ組み直す（同期で法令が増えた後に
 /// 古い索引で検索しないため）。
-final abbrevIndexProvider = Provider<LawAbbrevIndex>((ref) =>
-    abbrevIndexFor(ref.watch(lawsStreamProvider).valueOrNull ?? const []));
+final abbrevIndexProvider = Provider<LawAbbrevIndex>(
+    (ref) => abbrevIndexFor(ref.watch(lawsStreamProvider).value ?? const []));
 
 final searchRepositoryProvider = Provider<SearchRepository>((ref) =>
     SearchRepository(

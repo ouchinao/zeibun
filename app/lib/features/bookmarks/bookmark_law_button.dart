@@ -13,7 +13,7 @@ class BookmarkLawButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final on = ref
             .watch(isBookmarkedProvider((lawId: lawId, articleNum: null)))
-            .valueOrNull ??
+            .value ??
         false;
     return IconButton(
       icon: Icon(on ? Icons.bookmark : Icons.bookmark_border),

@@ -46,6 +46,7 @@ class SettingsPage extends ConsumerWidget {
     final settings = ref.watch(settingsProvider);
     final notifier = ref.read(settingsProvider.notifier);
     final runs = ref.watch(_syncRunsProvider);
+    final prefetch = ref.watch(prefetchStateProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('設定')),
       body: ListView(
@@ -56,19 +57,16 @@ class SettingsPage extends ConsumerWidget {
             subtitle: const Text('e-Gov から法令一覧を取り直します'),
             onTap: () => _refreshNow(ref),
           ),
-          ValueListenableBuilder(
-            valueListenable: ref.watch(prefetchStateListenableProvider),
-            builder: (context, state, _) => ListTile(
-              leading: const Icon(Icons.cloud_download_outlined),
-              title: const Text('全法令を端末に保存'),
-              subtitle: Text(switch (state) {
-                PrefetchRunning(:final progress) =>
-                  '保存中 ${progress.done} / ${progress.total} 件',
-                _ => 'オフラインで開け、横断全文検索の対象になります',
-              }),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push('/settings/prefetch'),
-            ),
+          ListTile(
+            leading: const Icon(Icons.cloud_download_outlined),
+            title: const Text('全法令を端末に保存'),
+            subtitle: Text(switch (prefetch) {
+              PrefetchRunning(:final progress) =>
+                '保存中 ${progress.done} / ${progress.total} 件',
+              _ => 'オフラインで開け、横断全文検索の対象になります',
+            }),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/prefetch'),
           ),
           SwitchListTile(
             secondary: const Icon(Icons.download_for_offline),
