@@ -1,14 +1,16 @@
 import 'dart:io';
 
 import 'package:test/test.dart';
-import 'package:zeibun_spike/zeibun_spike.dart';
+import 'package:zeibun_core/zeibun_core.dart';
+
+import 'support/synthetic_law.dart';
 
 void main() {
   const parser = LawParser();
 
   group('LawParser on the spec example (国旗及び国歌に関する法律)', () {
     final law = LawNode.parseXmlString(
-        File('fixtures/spec_example_kokki_kokka.xml').readAsStringSync());
+        File('test/fixtures/spec_example_kokki_kokka.xml').readAsStringSync());
     final records = parser.parse(law);
 
     test('header', () {

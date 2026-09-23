@@ -100,12 +100,11 @@ void main() {
       expect((sample['revision_info'] as Map)['current_revision_status'],
           'UnEnforced');
       // 現行側を LawSummary に取り込める
-      final law = LawSummary.fromApi({
+      final law = LawSummary.fromApiRow({
         'law_info': sample['law_info'],
         'revision_info': sample['current_revision_info'],
       });
       expect(LawScope.tax.reasonFor(law), 'category:013');
-      expect(law.currentRevisionStatus, 'CurrentEnforced');
     });
   });
 
@@ -113,7 +112,7 @@ void main() {
     final body = jsonDecode(
         File('fixtures/real/laws_category_cd_023_limit1.json')
             .readAsStringSync()) as Map<String, dynamic>;
-    final law = LawSummary.fromApi(
+    final law = LawSummary.fromApiRow(
         ((body['laws'] as List).first as Map).cast<String, dynamic>());
     expect(law.category, '国債');
     expect(LawScope.tax.reasonFor(law), isNull);
@@ -125,7 +124,7 @@ void main() {
             .readAsStringSync()) as Map<String, dynamic>;
     expect(body['total_count'], 1);
     final row = ((body['laws'] as List).first as Map).cast<String, dynamic>();
-    final law = LawSummary.fromApi({
+    final law = LawSummary.fromApiRow({
       'law_info': row['law_info'],
       'revision_info': row['current_revision_info'],
     });

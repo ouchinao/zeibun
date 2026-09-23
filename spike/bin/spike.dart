@@ -15,6 +15,21 @@ import 'package:args/args.dart';
 import 'package:xml/xml.dart';
 import 'package:zeibun_spike/zeibun_spike.dart';
 
+/// 設計書 §13 Phase 0 の計測対象（主要税法 10 件 + 地方法人税法）。
+const List<String> benchmarkLawIds = [
+  '340AC0000000033', // 所得税法
+  '340CO0000000096', // 所得税法施行令
+  '340AC0000000034', // 法人税法
+  '340CO0000000097', // 法人税法施行令
+  '363AC0000000108', // 消費税法
+  '325AC0000000073', // 相続税法
+  '332AC0000000026', // 租税特別措置法
+  '332CO0000000043', // 租税特別措置法施行令
+  '337AC0000000066', // 国税通則法
+  '325AC0000000226', // 地方税法
+  '426AC0000000011', // 地方法人税法
+];
+
 Future<void> main(List<String> argv) async {
   final parser = ArgParser()
     ..addCommand('catalog', ArgParser()..addOption('out', defaultsTo: 'out'))
@@ -85,8 +100,9 @@ Future<void> runCatalog(String outDir) async {
   final acao = cors.headers['access-control-allow-origin'];
   final code023 = ((cors.json as Map)['laws'] as List).isEmpty
       ? '(none)'
-      : LawSummary.fromApi((((cors.json as Map)['laws'] as List).first as Map)
-              .cast<String, dynamic>())
+      : LawSummary.fromApiRow(
+              (((cors.json as Map)['laws'] as List).first as Map)
+                  .cast<String, dynamic>())
           .category;
   report.writeln('- access-control-allow-origin: `${acao ?? "(なし)"}`');
   report.writeln('- category_cd=023 → `$code023`（公式表では 国債）');
@@ -121,18 +137,11 @@ Future<void> runCatalog(String outDir) async {
         final m = row.cast<String, dynamic>();
         final current = m['current_revision_info'];
         if (current is Map) withCurrentInfo++;
-        // 現行は current_revision_info、無ければ revision_info
-        final law = LawSummary.fromApi({
-          'law_info': m['law_info'],
-          'revision_info': current is Map ? current : m['revision_info'],
-        });
+        final law = LawSummary.fromApiRow(m);
         final reason = scope.reasonFor(law);
         if (reason == null) continue;
         byReason.putIfAbsent(reason, () => []).add(law);
-        final asofRev = (m['revision_info'] as Map?)?['law_revision_id'];
-        if (current is Map && asofRev != current['law_revision_id']) {
-          pending.add(law);
-        }
+        if (law.hasPendingAmendment) pending.add(law);
       }
       final next = body['next_offset'];
       if (next is int && laws.isNotEmpty) {
@@ -167,7 +176,15 @@ Future<void> runCatalog(String outDir) async {
   File('${out.path}/scope.json')
       .writeAsStringSync(const JsonEncoder.withIndent(' ').convert({
     for (final e in byReason.entries)
-      e.key: e.value.map((l) => l.toJson()).toList(),
+      e.key: e.value
+          .map((l) => {
+                'law_id': l.lawId,
+                'title': l.title,
+                'current_revision_id': l.currentRevisionId,
+                'pending_revision_id': l.pendingRevisionId,
+                'repeal_status': l.repealStatus
+              })
+          .toList(),
   }));
   File('${out.path}/catalog_report.md').writeAsStringSync(report.toString());
   stdout.write(report);
@@ -191,7 +208,7 @@ Future<void> runFetch(
       report.writeln('| $id | (not found) | | | | | |');
       continue;
     }
-    final law = LawSummary.fromApi(laws.first.cast<String, dynamic>());
+    final law = LawSummary.fromApiRow(laws.first.cast<String, dynamic>());
     final rev = law.currentRevisionId!;
     for (final fmt in formats) {
       try {

@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
-import 'package:zeibun_spike/zeibun_spike.dart';
+import 'package:zeibun_core/zeibun_core.dart';
+
+import 'support/synthetic_law.dart';
 
 void main() {
   group('LawNode.fromJson', () {
@@ -41,7 +43,7 @@ void main() {
 
   group('LawNode.fromXml', () {
     final xml =
-        File('fixtures/spec_example_kokki_kokka.xml').readAsStringSync();
+        File('test/fixtures/spec_example_kokki_kokka.xml').readAsStringSync();
     final law = LawNode.parseXmlString(xml);
 
     test('drops whitespace-only text nodes and keeps full-width spaces', () {

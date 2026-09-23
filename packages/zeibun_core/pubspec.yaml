@@ -1,0 +1,16 @@
+name: zeibun_core
+description: zeibun の Flutter 非依存コア。法令標準XML のツリー、条文パーサ、対象法令スコープ、同期の差分判定、条番号パース。
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  collection: ^1.18.0
+  meta: ^1.15.0
+  xml: ^6.5.0
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.25.0
