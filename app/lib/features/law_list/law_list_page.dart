@@ -24,11 +24,13 @@ class LawListPage extends ConsumerWidget {
                 child: Text('法令一覧がまだありません。\nオンラインで起動すると e-Gov から取得します。',
                     textAlign: TextAlign.center));
           }
-          final current = rows.where((l) => l.repealStatus == 'None').toList();
-          final reference =
-              rows.where((l) => l.repealStatus != 'None').toList();
           final groups = <String, List<Law>>{};
-          for (final l in current) {
+          final reference = <Law>[];
+          for (final l in rows) {
+            if (l.isReference) {
+              reference.add(l);
+              continue;
+            }
             final key = '${l.category ?? 'その他'} / ${lawTypeLabel(l.lawType)}';
             groups.putIfAbsent(key, () => []).add(l);
           }

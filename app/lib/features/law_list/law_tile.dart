@@ -16,27 +16,25 @@ class LawTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final isRef = law.repealStatus != 'None';
     final badges = <Widget>[
-      if (isRef) _Badge(repealStatusLabel(law.repealStatus), scheme.outline),
+      if (law.isReference)
+        _Badge(repealStatusLabel(law.repealStatus), scheme.outline),
       if (law.pendingRevisionId != null) _Badge('施行予定あり', scheme.tertiary),
-      if (law.bodyRevisionId != null &&
-          law.currentRevisionId != null &&
-          law.bodyRevisionId != law.currentRevisionId)
+      if (law.bodyCache == BodyCache.current) _Badge('保存済み', scheme.primary),
+      if (law.bodyCache == BodyCache.outdated)
         _Badge('改正あり（未取得）', scheme.error),
-      if (law.bodyRevisionId != null &&
-          law.bodyRevisionId == law.currentRevisionId)
-        _Badge('保存済み', scheme.primary),
     ];
     return ListTile(
       dense: true,
       title: Text(law.title,
-          style: isRef ? TextStyle(color: scheme.onSurfaceVariant) : null),
+          style: law.isReference
+              ? TextStyle(color: scheme.onSurfaceVariant)
+              : null),
       subtitle: Text(
         [
           lawTypeLabel(law.lawType),
           if (law.category != null) law.category!,
-          if (isRef && law.repealDate != null)
+          if (law.isReference && law.repealDate != null)
             '${repealStatusLabel(law.repealStatus)} ${law.repealDate}'
           else if (law.currentEnforcedAt != null)
             '施行 ${law.currentEnforcedAt}',

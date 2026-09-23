@@ -30,10 +30,6 @@ class LawDataEnvelope {
   }
 
   static LawDataEnvelope fromNode(LawNode root) {
-    if (root.tag == 'Law') {
-      // /law_file 由来（封筒なし）。メタは Law 属性からは取れないので空
-      return LawDataEnvelope._(root, root, const {}, const {});
-    }
     if (root.tag != 'law_data_response') {
       throw FormatException('unexpected root element <${root.tag}>');
     }
@@ -49,15 +45,24 @@ class LawDataEnvelope {
         root, law, flatten('revision_info'), flatten('law_info'));
   }
 
-  /// 要求したリビジョンと一致しなければ [StateError]。
+  /// 要求したリビジョンと一致しなければ [RevisionMismatch]。
   void verifyRevision(String expectedRevisionId) {
     final got = revisionId;
-    if (got == null) {
-      throw StateError('law_data_response has no revision_info');
-    }
     if (got != expectedRevisionId) {
-      throw StateError(
-          'revision mismatch: requested $expectedRevisionId, got $got');
+      throw RevisionMismatch(requested: expectedRevisionId, got: got);
     }
   }
+}
+
+/// `/law_data` が要求と違うリビジョン（または `revision_info` 無し）を返した。
+/// `StateError` にしないのは、呼び出し側が他のプログラム上の誤りまで
+/// 「データ異常」として握りつぶさないようにするため。
+class RevisionMismatch implements Exception {
+  const RevisionMismatch({required this.requested, required this.got});
+  final String requested;
+  final String? got;
+
+  @override
+  String toString() =>
+      'RevisionMismatch: requested $requested, got ${got ?? '(none)'}';
 }

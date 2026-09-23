@@ -1,5 +1,13 @@
 import 'package:meta/meta.dart';
 
+/// `repeal_status` の値。`none` 以外は廃止・失効・停止・実効性喪失で、
+/// 一覧には「参考」として載せる。
+abstract final class RepealStatus {
+  static const none = 'None';
+
+  static bool isReference(String status) => status != none;
+}
+
 /// `GET /laws` の 1 行（`law_info` + 現行の `revision_info`）を平らにしたもの。
 ///
 /// `asof` 付きの一覧では `current_revision_info` が現行、`revision_info` が
@@ -15,7 +23,7 @@ class LawSummary {
     this.abbrev,
     this.category,
     this.promulgationDate,
-    this.repealStatus = 'None',
+    this.repealStatus = RepealStatus.none,
     this.repealDate,
     this.updated,
     this.currentRevisionId,
@@ -51,7 +59,7 @@ class LawSummary {
   final String? pendingRevisionId;
 
   /// 廃止・失効した法令（一覧に「参考」として載せる）。
-  bool get isReference => repealStatus != 'None';
+  bool get isReference => RepealStatus.isReference(repealStatus);
 
   bool get hasPendingAmendment =>
       pendingRevisionId != null && pendingRevisionId != currentRevisionId;
@@ -69,12 +77,18 @@ class LawSummary {
   /// `law_revision_id` が異なれば未施行改正ありとみなす。判定に
   /// `current_revision_status` は使わない（asof 基準で評価され、現行でも
   /// `PreviousEnforced` になることがある。2026-09-23 実測）。
-  factory LawSummary.fromApiRow(Map<String, dynamic> row) {
+  ///
+  /// [currentRow] は `current_revision_info` が返らなかったときの保険で、
+  /// 同じ法令を `asof` なしで取った行。その `revision_info` を現行として使う。
+  factory LawSummary.fromApiRow(Map<String, dynamic> row,
+      {Map<String, dynamic>? currentRow}) {
     final info = _map(row['law_info']);
     final asofRev = _map(row['revision_info']);
     final currentRev = row['current_revision_info'] is Map
         ? _map(row['current_revision_info'])
-        : asofRev;
+        : currentRow != null
+            ? _map(currentRow['revision_info'])
+            : asofRev;
     final currentId = currentRev['law_revision_id'] as String?;
     final asofId = asofRev['law_revision_id'] as String?;
     return LawSummary(
@@ -90,7 +104,7 @@ class LawSummary {
       abbrev: currentRev['abbrev'] as String?,
       category: currentRev['category'] as String?,
       promulgationDate: info['promulgation_date'] as String?,
-      repealStatus: currentRev['repeal_status'] as String? ?? 'None',
+      repealStatus: currentRev['repeal_status'] as String? ?? RepealStatus.none,
       repealDate: currentRev['repeal_date'] as String?,
       updated: currentRev['updated'] as String?,
       currentRevisionId: currentId,
@@ -102,25 +116,6 @@ class LawSummary {
 
   static Map<String, dynamic> _map(Object? o) =>
       o is Map ? o.cast<String, dynamic>() : const {};
-
-  LawSummary copyWith({String? repealStatus, String? pendingRevisionId}) =>
-      LawSummary(
-        lawId: lawId,
-        lawNum: lawNum,
-        lawType: lawType,
-        title: title,
-        titleKana: titleKana,
-        abbrev: abbrev,
-        category: category,
-        promulgationDate: promulgationDate,
-        repealStatus: repealStatus ?? this.repealStatus,
-        repealDate: repealDate,
-        updated: updated,
-        currentRevisionId: currentRevisionId,
-        currentEnforcedAt: currentEnforcedAt,
-        amendmentLawTitle: amendmentLawTitle,
-        pendingRevisionId: pendingRevisionId ?? this.pendingRevisionId,
-      );
 
   @override
   String toString() => 'LawSummary($lawId $title rev=$currentRevisionId)';
@@ -156,8 +151,6 @@ class LawRevisionInfo {
   /// `CurrentEnforced` / `PreviousEnforced` / `UnEnforced` / `Repeal`
   final String? status;
   final String? updated;
-
-  bool get isUnenforced => status == 'UnEnforced';
 
   factory LawRevisionInfo.fromApi(Map<String, dynamic> m) => LawRevisionInfo(
         revisionId: m['law_revision_id'] as String,

@@ -8,23 +8,32 @@ Flutter 非依存のロジック（法令 XML のツリー・条文パーサ・�
 
 ```
 lib/
-├── main.dart / app.dart / router.dart / providers.dart
-├── data/
-│   ├── db/database.dart          drift スキーマ（設計書 §5）と DAO
-│   ├── egov/egov_api.dart        dio クライアント（5 req/s、再試行、受信上限、DOCTYPE 拒否）
+├── main.dart / app.dart / router.dart
+├── providers.dart               DB・API・リポジトリ・一覧ストリームなど基盤の Provider
+├── app_notices.dart             出典・免責の文言（1 箇所）
+├── data/                        通信と保存。画面からは Provider 経由でしか触らない
+│   ├── db/database.dart          drift スキーマ（設計書 §5）と DAO、`Law` 行の状態（LawFlags）
+│   ├── egov/egov_api.dart        dio クライアント（5 req/s、再試行、受信上限、失敗種別 EgovErrorKind）
 │   └── repositories/
-│       ├── sync_service.dart     起動時同期（§4.2）とバックオフ（§4.6）
-│       ├── law_repository.dart   本文の取得・検証・キャッシュ（§4.5）、改正履歴
+│       ├── sync_service.dart     起動時同期・手動更新（§4.2）、バックオフ（§4.6）、二重実行の抑止
+│       ├── law_repository.dart   本文の取得・検証・キャッシュ（§4.5）、先読み、改正履歴
 │       └── search_repository.dart 法令名検索・略称展開・条番号ジャンプ（§6）
-├── features/
-│   ├── home/        検索窓・同期バナー・最近開いた法令・主要税法
+├── features/                    画面（機能単位）
+│   ├── home/        検索窓・同期バナー・最近開いた法令・主要税法・初回免責
 │   ├── search/      検索結果（条番号ジャンプの候補を含む）
 │   ├── law_list/    法令一覧（分類・種別、末尾に「廃止・失効（参考）」）
-│   ├── law_viewer/  閲覧（本文 / 附則 / 改正履歴、目次、本文内検索、条文レンダラ）
+│   ├── law_viewer/  閲覧。law_page（枠・本文内検索）、main_tab / suppl_tab / revisions_tab、
+│   │                toc_drawer、article_menu、law_text（画面用モデル）、law_node_renderer
 │   ├── sync/        同期状態バナー
-│   └── settings/    今すぐ更新・先読み・キャッシュ削除・同期ログ・出典と免責
+│   └── settings/    設定の Notifier（SharedPreferences）と設定画面
 └── util/format.dart
 ```
+
+層の決まり:
+
+- 画面は `data/` を直接 import しない（`Law` などの行型と `providers.dart` を通す）。通信・DB 操作は Repository / Service に置く
+- 画面の状態は bool を並べず、`sealed class`（同期状態）・`enum`（本文の取得結果・失敗理由・保存状態）・小さな状態クラス（本文内検索）にまとめる
+- 失敗は種類で分ける: 通信環境（オフライン）／e-Gov 側の異常／受け取ったデータの異常。バナーと本文ヘッダの文言はこれで変わる
 
 ## 開発
 

@@ -19,28 +19,28 @@ class SyncChecking extends SyncState {
   const SyncChecking();
 }
 
-class SyncDownloading extends SyncState {
-  const SyncDownloading(this.done, this.total, this.currentTitle);
-  final int done;
-  final int total;
-  final String currentTitle;
-}
-
 class SyncSuccess extends SyncState {
   const SyncSuccess({
     required this.at,
     required this.revised,
     required this.pending,
     required this.checked,
-    this.skipped = false,
   });
   final DateTime at;
   final int revised;
   final int pending;
   final int checked;
+}
 
-  /// 10 分以内の再起動でカタログ取得を省略したとき。
-  final bool skipped;
+class SyncSkipped extends SyncState {
+  const SyncSkipped(this.lastSyncAt);
+  final DateTime lastSyncAt;
+}
+
+class SyncBackingOff extends SyncState {
+  const SyncBackingOff(this.failures, this.lastSyncAt);
+  final int failures;
+  final DateTime? lastSyncAt;
 }
 
 class SyncOffline extends SyncState {
@@ -87,79 +87,110 @@ class SyncService {
 
   final ValueNotifier<SyncState> state = ValueNotifier(const SyncIdle());
 
+  Future<SyncState>? _inFlight;
+
   static const _metaLastSync = 'last_catalog_sync_at';
-  static const _metaBackoff = 'backoff_level';
+  static const _metaLastAttempt = 'last_catalog_attempt_at';
   static const _metaFailures = 'consecutive_failures';
 
-  /// 起動時に呼ぶ。`force` なら 10 分抑制とバックオフを無視する。
-  Future<SyncState> runOnLaunch({bool force = false}) async {
-    final lastSync = await _lastSyncAt();
-    if (!force && lastSync != null) {
-      final backoff = await _currentBackoff();
-      final wait = backoff > minInterval ? backoff : minInterval;
-      if (_clock().difference(lastSync) < wait) {
-        final s = SyncSuccess(
-            at: lastSync, revised: 0, pending: 0, checked: 0, skipped: true);
-        state.value = s;
-        return s;
-      }
+  Future<SyncState> runOnLaunch({bool skipRecent = true}) async {
+    final lastSync = await _metaDate(_metaLastSync);
+    // 10 分抑制は最後の成功から、バックオフは最後の試行から測る。
+    // 成功から測ると、一度も成功していない端末や成功が古い端末で
+    // 失敗のたびに即再試行してしまう
+    if (skipRecent &&
+        lastSync != null &&
+        _clock().difference(lastSync) < minInterval) {
+      return _emit(SyncSkipped(lastSync));
     }
-    state.value = const SyncChecking();
+    final failures = await _consecutiveFailures();
+    final lastAttempt = await _metaDate(_metaLastAttempt);
+    if (lastAttempt != null &&
+        _clock().difference(lastAttempt) < backoffFor(failures)) {
+      return _emit(SyncBackingOff(failures, lastSync));
+    }
+    return _syncOnce();
+  }
+
+  /// 手動更新を `runOnLaunch(force:)` にしないのは、「抑制は無視するがバックオフの
+  /// カウンタは進める」といった条件の分岐が起動時の経路に増え続けるため。
+  Future<SyncState> refreshNow() => _syncOnce();
+
+  /// 進行中の同期があればそれに相乗りする。バナー連打や設定画面との同時操作で
+  /// 同じ 14 リクエストを並走させないため。
+  Future<SyncState> _syncOnce() =>
+      _inFlight ??= _sync().whenComplete(() => _inFlight = null);
+
+  Future<SyncState> _sync() async {
+    final lastSync = await _metaDate(_metaLastSync);
+    _emit(const SyncChecking());
     final startedAt = _clock();
+    await db.setMeta(_metaLastAttempt, startedAt.toIso8601String());
     final runId = await db.startSyncRun(startedAt.toIso8601String());
     try {
       final remote = await _fetchCatalog();
       final local = await db.localLawStates();
       final diff = diffCatalog(remote: remote.values, local: local);
       final now = _clock().toIso8601String();
-      var updated = 0;
-      for (final c in diff.changes) {
-        switch (c.kind) {
-          case CatalogChangeKind.added:
-          case CatalogChangeKind.revised:
-          case CatalogChangeKind.corrected:
-          case CatalogChangeKind.unchanged:
-            final s = c.remote!;
-            await db.upsertLawFromCatalog(s, scope.reasonFor(s)!);
-            if (c.kind != CatalogChangeKind.unchanged) updated++;
-          case CatalogChangeKind.missing:
-            await db.markMissing(c.lawId, now);
-        }
-      }
+      // unchanged の行も書くのは、未施行改正の登録（pending_revision_id）は
+      // リビジョンが変わらなくても動くから
+      await db.applyCatalogChanges(
+        present: [
+          for (final c in diff.changes)
+            if (c.remote case final s?)
+              (summary: s, scopeReason: scope.reasonFor(s)!),
+        ],
+        missing: [
+          for (final c in diff.changes)
+            if (c.kind == CatalogChangeKind.missing) c.lawId,
+        ],
+        at: now,
+      );
       final refetch = diff.needsRefetch.toList();
       if (prefetch != null && refetch.isNotEmpty) {
         await prefetch!(refetch);
       }
       await db.setMeta(_metaLastSync, now);
       await db.setMeta(_metaFailures, '0');
-      await db.setMeta(_metaBackoff, '0');
       await db.finishSyncRun(runId,
           finishedAt: now,
           status: 'success',
           lawsChecked: diff.changes.length,
-          lawsUpdated: updated);
-      final s = SyncSuccess(
+          lawsUpdated: diff.revised + diff.corrected + diff.added);
+      return _emit(SyncSuccess(
         at: _clock(),
         revised: diff.revised + diff.corrected,
         pending: diff.pending,
         checked: remote.length,
-      );
-      state.value = s;
-      return s;
+      ));
     } catch (e) {
-      final failures = await _bumpFailures();
-      await db.finishSyncRun(runId,
-          finishedAt: _clock().toIso8601String(),
-          status: 'error',
-          error: e.toString());
-      final s = e is EgovApiException && e.statusCode == null
-          ? SyncOffline(lastSync)
-          : SyncError(e.toString(), lastSync);
-      state.value = s;
-      debugPrint('sync failed ($failures consecutive): $e');
-      return s;
+      await _recordFailure(runId, e);
+      // 通信環境の問題だけ「オフライン」と出し、e-Gov 側の異常や形式の変化は
+      // 再試行しても直らないので別の文言にする
+      return _emit(switch (e) {
+        EgovApiException(kind: final k) when k.isOffline =>
+          SyncOffline(lastSync),
+        EgovApiException(kind: final k) =>
+          SyncError('e-Gov からの応答が異常です（${k.name}）', lastSync),
+        FormatException() ||
+        TypeError() =>
+          SyncError('一覧の形式を解釈できませんでした', lastSync),
+        _ => SyncError('同期に失敗しました: $e', lastSync),
+      });
     }
   }
+
+  Future<void> _recordFailure(int runId, Object error) async {
+    final failures = await _consecutiveFailures() + 1;
+    await db.setMeta(_metaFailures, '$failures');
+    await db.finishSyncRun(runId,
+        finishedAt: _clock().toIso8601String(),
+        status: 'error',
+        error: error.toString());
+    debugPrint('sync failed ($failures consecutive): $error');
+  }
+
+  SyncState _emit(SyncState s) => state.value = s;
 
   /// スコープの一覧を取り、法令 ID → LawSummary にまとめる。
   ///
@@ -173,30 +204,24 @@ class SyncService {
       final rows = await _fetchAllPages(q, asOf: EgovRequests.farFutureAsOf);
       // asof 付きの行に current_revision_info が無ければ、その行の revision_info は
       // 未施行側なので現行として使えない。同じクエリを asof なしで取り直して現行を得る
-      final lacksCurrent = rows.any((r) => r['current_revision_info'] is! Map);
       final currentById = <String, Map<String, dynamic>>{};
-      if (lacksCurrent) {
+      if (rows.any((r) => r['current_revision_info'] is! Map)) {
         for (final r in await _fetchAllPages(q, asOf: null)) {
-          final id = (r['law_info'] as Map?)?['law_id'];
-          if (id is String) currentById[id] = r;
+          currentById[_lawIdOf(r)] = r;
         }
       }
       for (final row in rows) {
-        var m = row;
-        if (m['current_revision_info'] is! Map) {
-          final id = (m['law_info'] as Map?)?['law_id'];
-          final cur = currentById[id];
-          if (cur != null) {
-            m = {...m, 'current_revision_info': cur['revision_info']};
-          }
-        }
-        final s = LawSummary.fromApiRow(m);
+        final s =
+            LawSummary.fromApiRow(row, currentRow: currentById[_lawIdOf(row)]);
         if (scope.reasonFor(s) == null) continue;
         out.putIfAbsent(s.lawId, () => s);
       }
     }
     return out;
   }
+
+  static String _lawIdOf(Map<String, dynamic> row) =>
+      (row['law_info'] as Map?)?['law_id'] as String? ?? '';
 
   Future<List<Map<String, dynamic>>> _fetchAllPages(Map<String, String> q,
       {required String? asOf}) async {
@@ -216,32 +241,22 @@ class SyncService {
     }
   }
 
-  Future<DateTime?> _lastSyncAt() async {
-    final v = await db.getMeta(_metaLastSync);
+  Future<DateTime?> _metaDate(String key) async {
+    final v = await db.getMeta(key);
     return v == null ? null : DateTime.tryParse(v);
   }
+
+  Future<int> _consecutiveFailures() async =>
+      int.tryParse(await db.getMeta(_metaFailures) ?? '0') ?? 0;
 
   /// 連続失敗回数に応じた自動同期の間隔。
   /// 失敗のたびに即再試行しないのは、e-Gov 側の障害時に全端末が起動のたびに
   /// 叩き続けるのを避けるため。手動の「今すぐ更新」はこの抑制を受けない。
-  Future<Duration> _currentBackoff() async {
-    final failures = int.tryParse(await db.getMeta(_metaFailures) ?? '0') ?? 0;
-    return backoffFor(failures);
-  }
-
-  static Duration backoffFor(int consecutiveFailures) {
-    if (consecutiveFailures < 2) return Duration.zero;
-    return switch (consecutiveFailures) {
-      2 => const Duration(hours: 1),
-      3 => const Duration(hours: 6),
-      _ => const Duration(hours: 24),
-    };
-  }
-
-  Future<int> _bumpFailures() async {
-    final n = (int.tryParse(await db.getMeta(_metaFailures) ?? '0') ?? 0) + 1;
-    await db.setMeta(_metaFailures, '$n');
-    await db.setMeta(_metaBackoff, '${backoffFor(n).inMinutes}');
-    return n;
-  }
+  static Duration backoffFor(int consecutiveFailures) =>
+      switch (consecutiveFailures) {
+        < 2 => Duration.zero,
+        2 => const Duration(hours: 1),
+        3 => const Duration(hours: 6),
+        _ => const Duration(hours: 24),
+      };
 }

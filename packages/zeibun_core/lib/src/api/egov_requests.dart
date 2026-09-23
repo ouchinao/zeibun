@@ -1,5 +1,3 @@
-import '../catalog/law_scope.dart';
-
 /// e-Gov 法令API v2 のリクエストを組み立てる（HTTP は行わない）。
 ///
 /// 設計書 §11 の入力検証（法令 ID・履歴 ID の形式）をここで行い、
@@ -45,10 +43,6 @@ class EgovRequests {
       if (offset != null && offset > 0) 'offset': '$offset',
     });
   }
-
-  /// 起動時同期の一覧取得（設計書 §4.2 ステップ 1）。
-  List<Uri> catalog(LawScope scope) =>
-      [for (final q in scope.catalogQueries()) laws(q)];
 
   /// `GET /law_data/{revision_id}` を XML 本文（gzip が効く）で取る。
   /// 既定では改正法令の附則を除く（`omit_amendment_suppl_provision=true`）。

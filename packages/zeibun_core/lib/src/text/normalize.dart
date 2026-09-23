@@ -22,7 +22,11 @@ String normalizeWidth(String s) {
 }
 
 /// 検索キーの正規化: 幅の統一 → 小文字化 → 前後空白除去。
-String normalizeForSearch(String s) => normalizeWidth(s).toLowerCase().trim();
+String normalizeForSearch(String s) => normalizeForMatch(s).trim();
+
+/// 照合用の正規化: 幅の統一 → 小文字化。文字数を変えないので、この結果で
+/// 見つけた一致位置を元の文字列のハイライトにそのまま使える（trim しない）。
+String normalizeForMatch(String s) => normalizeWidth(s).toLowerCase();
 
 const Map<String, int> _kanjiDigits = {
   '〇': 0,
@@ -85,8 +89,7 @@ class ArticleReference {
   /// 項（あれば）。
   final int? paragraph;
 
-  /// 人が読む表記（`第22条の12の5`）。
-  String get display => '第${articleNum.replaceAll('_', '条の')}条';
+  String get display => articleNumDisplay(articleNum);
 
   @override
   String toString() => 'ArticleReference($lawQuery $articleNum ¶$paragraph)';
@@ -118,6 +121,13 @@ ArticleReference? parseArticleReference(String input) {
     articleNum: [main, ...branches].join('_'),
     paragraph: para,
   );
+}
+
+/// `42_12_5` → `第42条の12の5`。枝番ごとに「条」を付けないのは、実務の表記が
+/// 「第42条の12の5」であって「第42条の第12条…」ではないため。
+String articleNumDisplay(String num) {
+  final parts = num.split('_');
+  return '第${parts.first}条${parts.skip(1).map((p) => 'の$p').join()}';
 }
 
 /// `ArticleTitle`（`第二十二条の四`）を `Article@Num` 形式（`22_4`）にする。

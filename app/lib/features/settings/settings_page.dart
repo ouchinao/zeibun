@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../app_notices.dart';
 import '../../data/db/database.dart';
 import '../../providers.dart';
 import '../../util/format.dart';
+import 'settings_controller.dart';
 
-final _syncRunsProvider = FutureProvider<List<SyncRun>>(
+final _syncRunsProvider = FutureProvider.autoDispose<List<SyncRun>>(
     (ref) => ref.watch(databaseProvider).recentSyncRuns());
 
 /// 設定（設計書 §8）: 今すぐ更新、先読み、キャッシュ削除、同期ログ、出典・免責・ライセンス。
@@ -15,9 +17,32 @@ class SettingsPage extends ConsumerWidget {
 
   static final Uri _egovUri = Uri.https('laws.e-gov.go.jp', '/');
 
+  Future<void> _refreshNow(WidgetRef ref) async {
+    await ref.read(syncServiceProvider).refreshNow();
+    ref.invalidate(_syncRunsProvider);
+  }
+
+  Future<void> _confirmClearBodies(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('保存した本文を削除しますか？'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('キャンセル')),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, true), child: const Text('削除')),
+        ],
+      ),
+    );
+    if (ok == true) await ref.read(lawRepositoryProvider).clearBodies();
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
+    final notifier = ref.read(settingsProvider.notifier);
     final runs = ref.watch(_syncRunsProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('設定')),
@@ -27,49 +52,26 @@ class SettingsPage extends ConsumerWidget {
             leading: const Icon(Icons.sync),
             title: const Text('今すぐ更新'),
             subtitle: const Text('e-Gov から法令一覧を取り直します'),
-            onTap: () async {
-              await ref.read(syncServiceProvider).runOnLaunch(force: true);
-              ref.invalidate(_syncRunsProvider);
-            },
+            onTap: () => _refreshNow(ref),
           ),
           SwitchListTile(
             secondary: const Icon(Icons.download_for_offline),
             title: const Text('よく使う法令を先読みする'),
             subtitle: const Text('主要な税法・最近開いた法令に改正があったとき、起動時に本文を取り直します'),
             value: settings.prefetchEnabled,
-            onChanged: (v) =>
-                ref.read(settingsProvider.notifier).setPrefetch(v),
+            onChanged: notifier.setPrefetch,
           ),
           SwitchListTile(
             secondary: const Icon(Icons.timer_outlined),
             title: const Text('10 分以内の再起動では一覧取得を省略'),
             value: settings.skipRecentSync,
-            onChanged: (v) =>
-                ref.read(settingsProvider.notifier).setSkipRecentSync(v),
+            onChanged: notifier.setSkipRecentSync,
           ),
           ListTile(
             leading: const Icon(Icons.delete_outline),
             title: const Text('保存した本文を削除'),
             subtitle: const Text('法令一覧は残ります。次に開くときに取り直します'),
-            onTap: () async {
-              final ok = await showDialog<bool>(
-                context: context,
-                builder: (c) => AlertDialog(
-                  title: const Text('保存した本文を削除しますか？'),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(c, false),
-                        child: const Text('キャンセル')),
-                    FilledButton(
-                        onPressed: () => Navigator.pop(c, true),
-                        child: const Text('削除')),
-                  ],
-                ),
-              );
-              if (ok == true) {
-                await ref.read(databaseProvider).clearBodies();
-              }
-            },
+            onTap: () => _confirmClearBodies(context, ref),
           ),
           const Divider(),
           ExpansionTile(
@@ -97,12 +99,7 @@ class SettingsPage extends ConsumerWidget {
           const ListTile(
             leading: Icon(Icons.info_outline),
             title: Text('出典と免責'),
-            subtitle: Text(
-              '法令データは e-Gov法令検索（デジタル庁）の法令API Version 2 から取得しています。'
-              '本アプリはデジタル庁・e-Gov の公式アプリではありません。'
-              '表示内容の正確性・最新性は保証しません。正本は官報および e-Gov法令検索で確認してください。'
-              '各法令の画面に取得日時とリビジョンを表示しています。',
-            ),
+            subtitle: Text('$sourceNotice$accuracyNotice'),
           ),
           ListTile(
             leading: const Icon(Icons.open_in_new),

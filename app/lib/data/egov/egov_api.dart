@@ -1,31 +1,47 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
 /// e-Gov 法令API v2 への HTTP アクセス。URL の組み立ては `zeibun_core` の
 /// `EgovRequests` が行い、ここは取得だけを担当する（テストでは差し替える）。
 abstract class EgovApi {
-  /// レスポンス本文をテキストで返す。4xx は [EgovApiException]。
-  Future<String> getText(Uri uri);
+  /// 文字列ではなくバイト列を返すのは、16MB の本文を Isolate 側でデコードして
+  /// メインスレッドに巨大な文字列を作らないため。
+  Future<Uint8List> getBytes(Uri uri);
 
-  /// JSON をデコードして返す。
+  Future<String> getText(Uri uri) async => utf8.decode(await getBytes(uri));
+
   Future<Map<String, dynamic>> getJson(Uri uri) async =>
       jsonDecode(await getText(uri)) as Map<String, dynamic>;
 }
 
+/// 失敗の種類。`statusCode` の有無で判定しないのは、タイムアウトも受信上限超過も
+/// 再試行の打ち切りも statusCode が null になり、区別できないため。
+enum EgovErrorKind {
+  network,
+  timeout,
+  serverError,
+  clientError,
+  tooLarge;
+
+  /// serverError を含めないのは、e-Gov 側の障害を「オフライン」と出すと
+  /// 利用者が自分の回線を疑うため。
+  bool get isOffline => this == network || this == timeout;
+}
+
 class EgovApiException implements Exception {
-  EgovApiException(this.uri, this.statusCode, this.message);
+  EgovApiException(this.kind, this.uri, {this.statusCode, this.message = ''});
+  final EgovErrorKind kind;
   final Uri uri;
   final int? statusCode;
   final String message;
 
-  bool get isClientError =>
-      statusCode != null && statusCode! >= 400 && statusCode! < 500;
-
   @override
-  String toString() => 'EgovApiException($statusCode $uri): $message';
+  String toString() =>
+      'EgovApiException(${kind.name} $statusCode $uri): $message';
 }
 
 /// dio 実装。
@@ -36,7 +52,8 @@ class EgovApiException implements Exception {
 ///   再試行し、4xx は即座に失敗させたいから（dio の既定はどちらも例外になる）
 /// - 再試行にジッタを入れるのは、多数の端末が同時刻に起動したときに e-Gov へ
 ///   再試行が同期して集中しないようにするため
-/// - 受信上限と `<!DOCTYPE` 拒否は、gzip 爆弾と実体展開でメモリを使い切られないため
+/// - 受信上限は gzip 爆弾でメモリを使い切られないため。`<!DOCTYPE` の拒否は
+///   ここではなく XML を解釈する `LawDataEnvelope` が行う（JSON には関係ない）
 class DioEgovApi extends EgovApi {
   DioEgovApi({
     Dio? dio,
@@ -55,7 +72,6 @@ class DioEgovApi extends EgovApi {
               headers: const {
                 'Accept': 'application/json, application/xml, */*'
               },
-              // 4xx/5xx を例外にせず自分で扱う
               validateStatus: (_) => true,
             ));
 
@@ -68,9 +84,17 @@ class DioEgovApi extends EgovApi {
   final Random _random;
   DateTime _nextSlot = DateTime.fromMillisecondsSinceEpoch(0);
 
+  static const _retryable = {
+    DioExceptionType.connectionTimeout,
+    DioExceptionType.receiveTimeout,
+    DioExceptionType.sendTimeout,
+    DioExceptionType.connectionError,
+    DioExceptionType.unknown,
+  };
+
   @override
-  Future<String> getText(Uri uri) async {
-    Object? lastError;
+  Future<Uint8List> getBytes(Uri uri) async {
+    late EgovApiException lastError;
     for (var attempt = 1; attempt <= maxAttempts; attempt++) {
       if (attempt > 1) {
         final base = retryBaseDelay * (1 << (attempt - 2));
@@ -79,48 +103,66 @@ class DioEgovApi extends EgovApi {
       }
       await _throttle();
       try {
-        final res = await _dio.getUri<List<int>>(
-          uri,
-          options: Options(
-            headers: {
-              // ブラウザでは UA を上書きできない（無視される）
-              'User-Agent': userAgent,
-            },
-          ),
-        );
-        final status = res.statusCode ?? 0;
-        final bytes = res.data ?? const <int>[];
-        if (status >= 500) {
-          lastError = EgovApiException(uri, status, 'server error');
-          continue;
+        return await _getOnce(uri);
+      } on EgovApiException catch (e) {
+        if (e.kind == EgovErrorKind.clientError ||
+            e.kind == EgovErrorKind.tooLarge) {
+          rethrow;
         }
-        if (status >= 400) {
-          throw EgovApiException(
-              uri, status, utf8.decode(bytes, allowMalformed: true));
-        }
-        if (bytes.length > maxBodyBytes) {
-          throw EgovApiException(
-              uri, status, 'response too large (${bytes.length} bytes)');
-        }
-        final text = utf8.decode(bytes);
-        if (text.contains('<!DOCTYPE')) {
-          throw EgovApiException(uri, status, 'DOCTYPE is not allowed');
-        }
-        return text;
-      } on DioException catch (e) {
-        if (e.type == DioExceptionType.connectionTimeout ||
-            e.type == DioExceptionType.receiveTimeout ||
-            e.type == DioExceptionType.sendTimeout ||
-            e.type == DioExceptionType.connectionError ||
-            e.type == DioExceptionType.unknown) {
-          lastError = e;
-          continue;
-        }
-        rethrow;
+        lastError = e;
       }
     }
-    throw EgovApiException(
-        uri, null, 'gave up after $maxAttempts attempts: $lastError');
+    throw EgovApiException(lastError.kind, uri,
+        statusCode: lastError.statusCode,
+        message: 'gave up after $maxAttempts attempts: ${lastError.message}');
+  }
+
+  /// 上限は受信中に掛ける。受信し終えてから長さを見る方式だと、小さな gzip が
+  /// 展開後に巨大になる場合にメモリを使い切ってから気付くことになる。
+  Future<Uint8List> _getOnce(Uri uri) async {
+    final cancel = CancelToken();
+    final Response<List<int>> res;
+    try {
+      res = await _dio.getUri<List<int>>(
+        uri,
+        cancelToken: cancel,
+        onReceiveProgress: (received, _) {
+          if (received > maxBodyBytes && !cancel.isCancelled) {
+            cancel.cancel('response too large ($received bytes)');
+          }
+        },
+        // ブラウザでは UA を上書きできない（無視される）
+        options: Options(headers: {'User-Agent': userAgent}),
+      );
+    } on DioException catch (e) {
+      final kind = switch (e.type) {
+        DioExceptionType.cancel => EgovErrorKind.tooLarge,
+        DioExceptionType.connectionTimeout ||
+        DioExceptionType.receiveTimeout ||
+        DioExceptionType.sendTimeout =>
+          EgovErrorKind.timeout,
+        _ when _retryable.contains(e.type) => EgovErrorKind.network,
+        _ => EgovErrorKind.clientError,
+      };
+      throw EgovApiException(kind, uri, message: '${e.message}');
+    }
+    final status = res.statusCode ?? 0;
+    final bytes = res.data ?? const <int>[];
+    if (status >= 500) {
+      throw EgovApiException(EgovErrorKind.serverError, uri,
+          statusCode: status, message: 'server error');
+    }
+    if (status >= 400) {
+      throw EgovApiException(EgovErrorKind.clientError, uri,
+          statusCode: status,
+          message: utf8.decode(bytes, allowMalformed: true));
+    }
+    if (bytes.length > maxBodyBytes) {
+      throw EgovApiException(EgovErrorKind.tooLarge, uri,
+          statusCode: status,
+          message: 'response too large (${bytes.length} bytes)');
+    }
+    return bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
   }
 
   /// 5 req/s の自主制限。並列で投げないのは、無認証の公共 API に対して

@@ -45,7 +45,7 @@ void main() {
       final r = parseArticleReference('措法42の12の5')!;
       expect(r.lawQuery, '措法');
       expect(r.articleNum, '42_12_5');
-      expect(r.display, '第42条の12条の5条'.replaceAll('条の', '条の'));
+      expect(r.display, '第42条の12の5');
     });
     test('kanji article and paragraph', () {
       final r = parseArticleReference('所得税法第二十二条第一項')!;
@@ -60,6 +60,14 @@ void main() {
     test('plain law name is not an article reference', () {
       expect(parseArticleReference('法人税法'), isNull);
       expect(parseArticleReference('損金'), isNull);
+    });
+  });
+
+  group('articleNumDisplay', () {
+    test('formats plain and branch numbers', () {
+      expect(articleNumDisplay('22'), '第22条');
+      expect(articleNumDisplay('66_4'), '第66条の4');
+      expect(articleNumDisplay('42_12_5'), '第42条の12の5');
     });
   });
 

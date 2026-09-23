@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:zeibun_core/zeibun_core.dart';
 
@@ -30,30 +32,18 @@ class _Renderer {
   final TextStyle base;
   final ColorScheme scheme;
 
+  /// `*Sentence` を列挙しないのは、Subitem1〜10Sentence のように規則的な名前が
+  /// 多く、列挙すると漏れが出るため。ここは接尾辞で拾えないものだけ。
   static const _inlineTags = {
-    'Sentence',
-    'ParagraphSentence',
-    'ItemSentence',
-    'Subitem1Sentence',
-    'Subitem2Sentence',
-    'Subitem3Sentence',
-    'Subitem4Sentence',
-    'Subitem5Sentence',
-    'Subitem6Sentence',
-    'Subitem7Sentence',
-    'Subitem8Sentence',
-    'Subitem9Sentence',
-    'Subitem10Sentence',
-    'ListSentence',
-    'Sublist1Sentence',
-    'Sublist2Sentence',
-    'Sublist3Sentence',
     'Column',
     'Ruby',
     'Line',
     'QuoteStruct',
     'ArithFormula',
   };
+
+  static bool _isInline(String tag) =>
+      tag.endsWith('Sentence') || _inlineTags.contains(tag);
 
   Widget block(LawNode n) {
     switch (n.tag) {
@@ -63,18 +53,9 @@ class _Renderer {
         return _paragraph(n);
       case 'Item':
         return _numbered(n, 'ItemTitle', indent: 1);
-      case 'Subitem1':
-      case 'Subitem2':
-      case 'Subitem3':
-      case 'Subitem4':
-      case 'Subitem5':
-      case 'Subitem6':
-      case 'Subitem7':
-      case 'Subitem8':
-      case 'Subitem9':
-      case 'Subitem10':
-        final level = int.tryParse(n.tag.substring('Subitem'.length)) ?? 1;
-        return _numbered(n, '${n.tag}Title', indent: 1 + level);
+      case final tag when tag.startsWith('Subitem'):
+        final level = int.tryParse(tag.substring('Subitem'.length)) ?? 1;
+        return _numbered(n, '${tag}Title', indent: 1 + level);
       case 'List':
       case 'Sublist1':
       case 'Sublist2':
@@ -107,7 +88,7 @@ class _Renderer {
           ),
         );
       default:
-        if (_inlineTags.contains(n.tag)) return _inlineText(n);
+        if (_isInline(n.tag)) return _inlineText(n);
         if (n.tag.endsWith('Title') ||
             n.tag.endsWith('Caption') ||
             n.tag.endsWith('Label') ||
@@ -137,7 +118,7 @@ class _Renderer {
       if (c is String) {
         inlineRun.add(LawNode('Sentence', const {}, [c]));
       } else if (c is LawNode) {
-        if (_inlineTags.contains(c.tag)) {
+        if (_isInline(c.tag)) {
           inlineRun.add(c);
         } else {
           flushInline();
@@ -175,8 +156,7 @@ class _Renderer {
 
   /// 項。第 1 項は条名を先頭に置き、2 項以降は項番号をぶら下げる。
   Widget _paragraph(LawNode n, {String? leadingTitle}) {
-    var num = n.firstChild('ParagraphNum')?.text.trim() ?? '';
-    if (num.isEmpty && n.attr['OldNum'] == 'true') num = n.attr['Num'] ?? '';
+    final num = paragraphNumber(n);
     final caption = n.firstChild('ParagraphCaption')?.text;
     final body = n.elements
         .where((e) => e.tag != 'ParagraphNum' && e.tag != 'ParagraphCaption')
@@ -258,11 +238,13 @@ class _Renderer {
   }
 
   Widget _table(LawNode n) {
-    final rows = n.childrenNamed('TableRow').toList();
+    final rows = [
+      for (final r in n.childrenNamed('TableRow'))
+        r.childrenNamed('TableColumn').toList(),
+    ];
     if (rows.isEmpty) return _children(n);
-    final maxCols = rows
-        .map((r) => r.childrenNamed('TableColumn').length)
-        .fold<int>(0, (a, b) => a > b ? a : b);
+    // Table は全行の列数が揃っていないと例外になるので、足りない分は空セルで埋める
+    final maxCols = rows.map((r) => r.length).reduce(max);
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: ConstrainedBox(
@@ -273,16 +255,14 @@ class _Renderer {
           defaultColumnWidth: const IntrinsicColumnWidth(),
           defaultVerticalAlignment: TableCellVerticalAlignment.top,
           children: [
-            for (final r in rows)
+            for (final cols in rows)
               TableRow(children: [
-                for (final c in r.childrenNamed('TableColumn'))
+                for (final c in cols)
                   Padding(
                     padding: const EdgeInsets.all(6),
                     child: _children(c),
                   ),
-                for (var i = r.childrenNamed('TableColumn').length;
-                    i < maxCols;
-                    i++)
+                for (var i = cols.length; i < maxCols; i++)
                   const SizedBox.shrink(),
               ]),
           ],
@@ -340,7 +320,8 @@ class _Renderer {
   List<InlineSpan> _highlighted(String text) {
     final h = highlight;
     if (h == null || h.isEmpty) return [TextSpan(text: text)];
-    final norm = normalizeForSearch(text);
+    // trim する normalizeForSearch だと先頭の空白分だけ位置がずれるので、幅と大小文字だけ揃える
+    final norm = normalizeForMatch(text);
     final spans = <InlineSpan>[];
     var start = 0;
     while (true) {

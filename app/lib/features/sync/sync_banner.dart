@@ -5,7 +5,7 @@ import '../../data/repositories/sync_service.dart';
 import '../../providers.dart';
 import '../../util/format.dart';
 
-/// 検索画面上部の細いバナー（設計書 §4.4）。
+/// 設計書 §4.4。
 class SyncBanner extends ConsumerWidget {
   const SyncBanner({super.key});
 
@@ -27,33 +27,28 @@ class SyncBanner extends ConsumerWidget {
               Icons.sync,
               scheme.surfaceContainerHighest
             ),
-          SyncDownloading(:final done, :final total, :final currentTitle) => (
-              '本文を更新中 $done/$total  $currentTitle',
-              Icons.download,
-              scheme.surfaceContainerHighest
-            ),
-          SyncSuccess(
-            :final at,
-            :final revised,
-            :final pending,
-            :final skipped
-          ) =>
-            (
-              skipped
-                  ? '最終同期 ${formatTime(at)}'
-                  : '最終同期 ${formatTime(at)} / 改正あり $revised 件 / 施行予定あり $pending 件',
+          SyncSkipped(:final lastSyncAt) => (
+              '最終同期 ${formatTime(lastSyncAt)}',
               Icons.check_circle_outline,
               scheme.secondaryContainer
             ),
+          SyncSuccess(:final at, :final revised, :final pending) => (
+              '最終同期 ${formatTime(at)} / 改正あり $revised 件 / 施行予定あり $pending 件',
+              Icons.check_circle_outline,
+              scheme.secondaryContainer
+            ),
+          SyncBackingOff(:final failures, :final lastSyncAt) => (
+              '連続 $failures 回失敗したため自動同期を見送りました${_previous(lastSyncAt)}',
+              Icons.pause_circle_outline,
+              scheme.errorContainer
+            ),
           SyncOffline(:final lastSyncAt) => (
-              'オフライン。一覧を取得できませんでした'
-                  '${lastSyncAt == null ? '' : '（前回 ${formatTime(lastSyncAt)}）'}',
+              'オフライン。一覧を取得できませんでした${_previous(lastSyncAt)}',
               Icons.cloud_off,
               scheme.tertiaryContainer
             ),
-          SyncError(:final lastSyncAt) => (
-              '同期に失敗しました'
-                  '${lastSyncAt == null ? '' : '（前回 ${formatTime(lastSyncAt)}）'}',
+          SyncError(:final message, :final lastSyncAt) => (
+              '$message${_previous(lastSyncAt)}',
               Icons.error_outline,
               scheme.errorContainer
             ),
@@ -61,7 +56,9 @@ class SyncBanner extends ConsumerWidget {
         return Material(
           color: color,
           child: InkWell(
-            onTap: () => ref.read(syncServiceProvider).runOnLaunch(force: true),
+            onTap: state is SyncChecking
+                ? null
+                : () => ref.read(syncServiceProvider).refreshNow(),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               child: Row(children: [
@@ -78,4 +75,7 @@ class SyncBanner extends ConsumerWidget {
       },
     );
   }
+
+  static String _previous(DateTime? at) =>
+      at == null ? '' : '（前回 ${formatTime(at)}）';
 }

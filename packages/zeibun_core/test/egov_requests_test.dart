@@ -5,7 +5,7 @@ void main() {
   final req = EgovRequests();
 
   test('catalog queries carry asof far-future and json format', () {
-    final uris = req.catalog(LawScope.tax);
+    final uris = [for (final q in LawScope.tax.catalogQueries()) req.laws(q)];
     expect(uris.length, 2 + LawScope.tax.explicitLawIds.length);
     final first = uris.first;
     expect(first.host, 'laws.e-gov.go.jp');

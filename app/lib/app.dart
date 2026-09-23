@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'features/settings/settings_controller.dart';
 import 'providers.dart';
 import 'router.dart';
 
@@ -20,10 +21,9 @@ class _ZeibunAppState extends ConsumerState<ZeibunApp> {
     super.initState();
     if (widget.runSyncOnLaunch) {
       // 画面表示をブロックしない（設計書 §4.1）
-      Future.microtask(() {
-        final force = !ref.read(settingsProvider).skipRecentSync;
-        ref.read(syncServiceProvider).runOnLaunch(force: force);
-      });
+      Future.microtask(() => ref
+          .read(syncServiceProvider)
+          .runOnLaunch(skipRecent: ref.read(settingsProvider).skipRecentSync));
     }
   }
 

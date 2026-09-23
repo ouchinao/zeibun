@@ -230,6 +230,16 @@ class LawParser {
       node.firstChild('RelatedArticleNum')?.text;
 }
 
+/// レンダラと [PlainText] で別々に書かないのは、`OldNum` の補い方が片方だけ
+/// 変わると表示と検索の項番号がずれるため。
+String paragraphNumber(LawNode paragraph) {
+  final num = paragraph.firstChild('ParagraphNum')?.text.trim() ?? '';
+  if (num.isEmpty && paragraph.attr['OldNum'] == 'true') {
+    return paragraph.attr['Num'] ?? '';
+  }
+  return num;
+}
+
 /// 検索用の平文化（設計書 §7-3）。
 ///
 /// - `Sentence` を文書順に連結
@@ -291,11 +301,7 @@ class PlainText {
           current.write(caption);
           flush();
         }
-        final numNode = n.firstChild('ParagraphNum');
-        var num = numNode?.text.trim() ?? '';
-        if (num.isEmpty && n.attr['OldNum'] == 'true') {
-          num = n.attr['Num'] ?? '';
-        }
+        final num = paragraphNumber(n);
         if (num.isNotEmpty) current.write('$num　');
       }
 

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zeibun_core/zeibun_core.dart';
 
+import '../../app_notices.dart';
 import '../../data/db/database.dart';
 import '../../providers.dart';
 import '../law_list/law_tile.dart';
+import '../settings/settings_controller.dart';
 import '../sync/sync_banner.dart';
 
 /// 検索（ホーム）。検索窓、同期バナー、最近開いた法令、主要法令へのショートカット。
@@ -26,36 +27,28 @@ class _HomePageState extends ConsumerState<HomePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _showDisclaimerOnce());
   }
 
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   /// 初回起動時だけ免責を表示する。設定画面にも同じ文言を常設しているので、
   /// 毎回出して読み飛ばされるより、一度だけ確実に目に入る形にする。
   Future<void> _showDisclaimerOnce() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool(_kDisclaimerShown) == true || !mounted) return;
+    if (ref.read(settingsProvider).disclaimerShown || !mounted) return;
     await showDialog<void>(
       context: context,
       builder: (c) => AlertDialog(
         title: const Text('ご利用にあたって'),
-        content: const Text(
-          '法令データは e-Gov法令検索（デジタル庁）の法令API から取得しています。'
-          '本アプリはデジタル庁・e-Gov の公式アプリではありません。\n\n'
-          '表示内容の正確性・最新性は保証しません。正本は官報および e-Gov法令検索で確認してください。'
-          '各法令の画面に取得日時とリビジョンを表示しています。',
-        ),
+        content: const Text('$sourceNotice\n\n$accuracyNotice'),
         actions: [
           FilledButton(
               onPressed: () => Navigator.pop(c), child: const Text('確認しました')),
         ],
       ),
     );
-    await prefs.setBool(_kDisclaimerShown, true);
-  }
-
-  static const _kDisclaimerShown = 'disclaimer_shown_v1';
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+    await ref.read(settingsProvider.notifier).markDisclaimerShown();
   }
 
   void _submit(String q) {
@@ -94,7 +87,7 @@ class _HomePageState extends ConsumerState<HomePage> {
             ),
           ),
           const SizedBox(height: 24),
-          _SectionTitle('最近開いた法令'),
+          const _SectionTitle('最近開いた法令'),
           recent.when(
             data: (rows) => rows.isEmpty
                 ? const _Hint('まだ法令を開いていません。')
@@ -103,53 +96,50 @@ class _HomePageState extends ConsumerState<HomePage> {
             error: (e, _) => _Hint('読み込みエラー: $e'),
           ),
           const SizedBox(height: 24),
-          _SectionTitle('主要な税法'),
+          const _SectionTitle('主要な税法'),
           laws.when(
-            data: (rows) {
-              final byId = {for (final l in rows) l.lawId: l};
-              final major = [
-                for (final id in majorTaxLaws.keys)
-                  if (byId[id] != null) byId[id]!,
-              ];
-              if (major.isEmpty) {
-                return const _Hint('法令一覧を取得すると、ここに主要な税法が並びます。');
-              }
-              return Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final l in major)
-                    ActionChip(
-                      label: Text(l.title),
-                      avatar: _badgeFor(l),
-                      onPressed: () => context.push('/law/${l.lawId}'),
-                    ),
-                ],
-              );
-            },
+            data: (rows) => _MajorLawChips(rows),
             loading: () => const LinearProgressIndicator(),
             error: (e, _) => _Hint('読み込みエラー: $e'),
           ),
           const SizedBox(height: 32),
-          Text(
-            '出典: e-Gov法令検索（https://laws.e-gov.go.jp/）。'
-            '本アプリはデジタル庁・e-Gov の公式アプリではありません。',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          Text(footerNotice, style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
     );
   }
+}
 
-  Widget? _badgeFor(Law l) {
-    if (l.currentRevisionId != null &&
-        l.bodyRevisionId == l.currentRevisionId) {
-      return const Icon(Icons.offline_pin, size: 18);
+class _MajorLawChips extends StatelessWidget {
+  const _MajorLawChips(this.laws);
+  final List<Law> laws;
+
+  @override
+  Widget build(BuildContext context) {
+    final byId = {for (final l in laws) l.lawId: l};
+    final major = [
+      for (final id in majorTaxLaws.keys)
+        if (byId[id] case final l?) l,
+    ];
+    if (major.isEmpty) {
+      return const _Hint('法令一覧を取得すると、ここに主要な税法が並びます。');
     }
-    if (l.bodyRevisionId != null) {
-      return const Icon(Icons.update, size: 18);
-    }
-    return null;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final l in major)
+          ActionChip(
+            label: Text(l.title),
+            avatar: switch (l.bodyCache) {
+              BodyCache.none => null,
+              BodyCache.current => const Icon(Icons.offline_pin, size: 18),
+              BodyCache.outdated => const Icon(Icons.update, size: 18),
+            },
+            onPressed: () => context.push('/law/${l.lawId}'),
+          ),
+      ],
+    );
   }
 }
 

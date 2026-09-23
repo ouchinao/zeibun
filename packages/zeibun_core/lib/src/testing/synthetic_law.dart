@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:zeibun_core/zeibun_core.dart';
+import '../law/law_node.dart';
 
 /// 実 API に届かない環境でも規模感を測るための、税法に似た構造の合成法令。
 ///

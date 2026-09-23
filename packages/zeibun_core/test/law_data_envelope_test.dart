@@ -1,3 +1,6 @@
+@TestOn('vm')
+library;
+
 import 'dart:io';
 
 import 'package:test/test.dart';
@@ -20,16 +23,15 @@ void main() {
     final env = LawDataEnvelope.parse(xml);
     env.verifyRevision(env.revisionId!);
     expect(() => env.verifyRevision('426AC0000000011_20000101_000000000000000'),
-        throwsStateError);
+        throwsA(isA<RevisionMismatch>()));
   });
 
-  test('accepts a bare Law element (law_file) without metadata', () {
-    final env = LawDataEnvelope.parse(
-        File('test/fixtures/law_file_426AC0000000011_地方法人税法.xml')
-            .readAsStringSync());
-    expect(env.law.tag, 'Law');
-    expect(env.revisionId, isNull);
-    expect(() => env.verifyRevision('x'), throwsStateError);
+  test('rejects a bare Law element: bodies come from /law_data only', () {
+    expect(
+        () => LawDataEnvelope.parse(
+            File('test/fixtures/law_file_426AC0000000011_地方法人税法.xml')
+                .readAsStringSync()),
+        throwsFormatException);
   });
 
   test('rejects DOCTYPE', () {

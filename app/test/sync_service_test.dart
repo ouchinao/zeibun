@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zeibun/data/db/database.dart';
+import 'package:zeibun/data/egov/egov_api.dart';
 import 'package:zeibun/data/repositories/sync_service.dart';
 import 'package:zeibun_core/zeibun_core.dart';
 
@@ -50,12 +51,20 @@ void main() {
     await service().runOnLaunch();
     final calls = api.calls.length;
     now = now.add(const Duration(minutes: 5));
-    final s = await service().runOnLaunch();
-    expect((s as SyncSuccess).skipped, isTrue);
+    expect(await service().runOnLaunch(), isA<SyncSkipped>());
     expect(api.calls.length, calls);
-    // force なら取りに行く
-    await service().runOnLaunch(force: true);
+    // 設定で省略を切っていれば取りに行く
+    await service().runOnLaunch(skipRecent: false);
     expect(api.calls.length, greaterThan(calls));
+  });
+
+  test('concurrent refresh requests share one run', () async {
+    api.onPath('/api/2/laws', catalogHandler());
+    final s = service();
+    final results = await Future.wait([s.refreshNow(), s.refreshNow()]);
+    expect(results, everyElement(isA<SyncSuccess>()));
+    expect(api.calls.length, 2 + LawScope.tax.explicitLawIds.length);
+    expect((await db.recentSyncRuns()).length, 1);
   });
 
   test('revised law is detected and reported for refetch', () async {
@@ -92,6 +101,7 @@ void main() {
     expect(after!.currentRevisionId, endsWith('_20270401_509AC0000000001'));
     // 本文キャッシュの列は触らない → 「改正あり（未取得）」の状態
     expect(after.bodyRevisionId, houjin.currentRevisionId);
+    expect(after.bodyCache, BodyCache.outdated);
   });
 
   test('a law that disappears from the catalog is flagged, not deleted',
@@ -113,6 +123,7 @@ void main() {
     api.offline = true;
     final s1 = await service().runOnLaunch();
     expect(s1, isA<SyncOffline>());
+    now = now.add(const Duration(minutes: 1));
     final s2 = await service().runOnLaunch();
     expect(s2, isA<SyncOffline>());
     expect(await db.getMeta('consecutive_failures'), '2');
@@ -124,14 +135,53 @@ void main() {
     expect(runs.first.status, 'error');
   });
 
-  test('4xx from the API is an error state, and recovery resets failures',
+  test(
+      'after two failures the next automatic launch within 1h makes no request',
       () async {
-    api.onPath('/api/2/laws', (u) => throw StateError('boom'));
+    api.offline = true;
+    await service().runOnLaunch();
+    now = now.add(const Duration(minutes: 1));
+    await service().runOnLaunch();
+    final calls = api.calls.length;
+
+    // 一度も成功していなくても、最後の試行から 1 時間は自動同期しない
+    now = now.add(const Duration(minutes: 30));
+    final held = await service().runOnLaunch();
+    expect(held, isA<SyncBackingOff>());
+    expect(api.calls.length, calls, reason: 'バックオフ中はリクエストしない');
+
+    // 手動更新は抑制を受けない（失敗すればカウンタは 3 になり、待機は 6 時間に伸びる）
+    await service().refreshNow();
+    expect(api.calls.length, greaterThan(calls));
+    expect(await db.getMeta('consecutive_failures'), '3');
+    now = now.add(const Duration(hours: 2));
+    expect(await service().runOnLaunch(), isA<SyncBackingOff>());
+
+    // バックオフが明けたら再試行し、成功でカウンタが戻る
+    api.offline = false;
+    api.onPath('/api/2/laws', catalogHandler());
+    now = now.add(const Duration(hours: 5));
+    expect(await service().runOnLaunch(), isA<SyncSuccess>());
+    expect(await db.getMeta('consecutive_failures'), '0');
+  });
+
+  test('a 4xx from the API is an error (not offline), and recovery resets',
+      () async {
+    api.onPath(
+        '/api/2/laws',
+        (u) => throw EgovApiException(EgovErrorKind.clientError, u,
+            statusCode: 404));
     expect(await service().runOnLaunch(), isA<SyncError>());
     api.onPath('/api/2/laws', catalogHandler());
     now = now.add(const Duration(hours: 2));
-    expect(await service().runOnLaunch(force: true), isA<SyncSuccess>());
+    expect(await service().refreshNow(), isA<SyncSuccess>());
     expect(await db.getMeta('consecutive_failures'), '0');
+  });
+
+  test('an unparseable catalog is an error state, and is recorded', () async {
+    api.onPath('/api/2/laws', (u) => '{"laws": "not a list"}');
+    expect(await service().runOnLaunch(), isA<SyncError>());
+    expect((await db.recentSyncRuns()).single.status, 'error');
   });
 
   test('rows without current_revision_info trigger a plain (no asof) refetch',

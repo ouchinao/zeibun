@@ -10,11 +10,12 @@ void main() {
   late AppDatabase db;
   late FakeEgovApi api;
   const lawId = '426AC0000000011'; // 地方法人税法
-  final now = DateTime(2026, 9, 23, 10, 0);
+  var now = DateTime(2026, 9, 23, 10, 0);
 
   setUp(() async {
     db = inMemoryDatabase();
     api = FakeEgovApi();
+    now = DateTime(2026, 9, 23, 10, 0);
     api.onPath('/api/2/laws', catalogHandler());
     await SyncService(api: api, db: db, clock: () => now).runOnLaunch();
     api.calls.clear();
@@ -49,7 +50,7 @@ void main() {
     expect(call.queryParameters['response_format'], 'xml');
 
     final saved = (await db.getLaw(lawId))!;
-    expect(saved.bodyRevisionId, law.currentRevisionId);
+    expect(saved.bodyCache, BodyCache.current);
     expect(saved.bodyIncludesAmendSuppl, isFalse);
     expect(saved.lastOpenedAt, isNotNull);
 
@@ -84,12 +85,13 @@ void main() {
             '<law_revision_id>426AC0000000011_20000101_000000000000000</law_revision_id>'));
     final r = await repo().openLaw(lawId);
     expect(r.status, BodyStatus.unavailable);
-    expect(r.error, isStateError);
-    expect((await db.getLaw(lawId))!.bodyRevisionId, isNull);
+    expect(r.failure, BodyFailure.invalidData);
+    expect((await db.getLaw(lawId))!.bodyCache, BodyCache.none);
     expect(await db.articlesOf(lawId), isEmpty);
   });
 
-  test('offline with an old cache shows stale content', () async {
+  test('offline with an old cache shows stale content, marked as offline',
+      () async {
     final law = (await db.getLaw(lawId))!;
     serveBody(law.currentRevisionId!);
     await repo().openLaw(lawId);
@@ -111,14 +113,16 @@ void main() {
     api.offline = true;
     final r = await repo().openLaw(lawId);
     expect(r.status, BodyStatus.stale);
+    expect(r.failure, BodyFailure.offline);
     expect(r.articles, isNotEmpty);
     final after = (await db.getLaw(lawId))!;
     expect(after.bodyRevisionId, law.currentRevisionId); // 古いまま
-    expect(after.currentRevisionId, endsWith('_20270401_509AC0000000001'));
+    expect(after.bodyCache, BodyCache.outdated);
   });
 
-  test('refreshRevisions stores the history and falls back to cache offline',
-      () async {
+  test(
+      'refreshRevisions stores the history, reuses it for 10 minutes, '
+      'and falls back to it offline', () async {
     api.onPath('/api/2/law_revisions/340AC0000000034',
         (_) => fixture('law_revisions_340AC0000000034_法人税法.json'));
     final revs = await repo().refreshRevisions('340AC0000000034');
@@ -126,8 +130,16 @@ void main() {
     expect(revs.where((r) => r.status == 'UnEnforced'), isNotEmpty);
     expect(revs.first.enforcedAt.compareTo(revs.last.enforcedAt),
         greaterThanOrEqualTo(0));
+    final calls = api.calls.length;
+
+    now = now.add(const Duration(minutes: 5));
+    await repo().refreshRevisions('340AC0000000034');
+    expect(api.calls.length, calls, reason: '直近に取ったものは取り直さない');
+
+    now = now.add(const Duration(hours: 1));
     api.offline = true;
     final cached = await repo().refreshRevisions('340AC0000000034');
+    expect(api.calls.length, calls + 1);
     expect(cached.length, revs.length);
   });
 }

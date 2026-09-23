@@ -13,7 +13,8 @@ void main() {
     db = inMemoryDatabase();
     final api = FakeEgovApi()..onPath('/api/2/laws', catalogHandler());
     await SyncService(api: api, db: db).runOnLaunch();
-    search = SearchRepository(db: db);
+    search =
+        SearchRepository(db: db, abbrevs: abbrevIndexFor(await db.allLaws()));
   });
 
   tearDown(() => db.close());
@@ -49,5 +50,10 @@ void main() {
         contains('消費税法'));
     expect((await search.search('　所得税法　')).first.law.title, '所得税法');
     expect(await search.search(''), isEmpty);
+  });
+
+  test('LIKE wildcards in the input are not interpreted', () async {
+    expect(await search.search('%'), isEmpty);
+    expect(await search.search('_'), isEmpty);
   });
 }

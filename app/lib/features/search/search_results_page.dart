@@ -6,8 +6,11 @@ import '../../data/repositories/search_repository.dart';
 import '../../providers.dart';
 import '../law_list/law_tile.dart';
 
-final _searchProvider = FutureProvider.family<List<SearchHit>, String>(
-    (ref, q) => ref.watch(searchRepositoryProvider).search(q));
+/// autoDispose にし、`searchRepositoryProvider` 経由で一覧の変化を追う。
+/// keep-alive だと同期前に検索した語が空のまま固定される。
+final _searchProvider = FutureProvider.autoDispose
+    .family<List<SearchHit>, String>(
+        (ref, q) => ref.watch(searchRepositoryProvider).search(q));
 
 /// 検索結果。法令名の一致一覧と、条番号ジャンプの候補（設計書 §8）。
 class SearchResultsPage extends ConsumerWidget {

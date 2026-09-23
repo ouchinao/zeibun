@@ -123,6 +123,29 @@ class ArticleRow {
   final String bodyJson;
 }
 
+enum BodyCache {
+  none,
+  current,
+
+  /// 保存済みだが、一覧側で改正が施行された（画面では「改正あり（未取得）」）
+  outdated,
+}
+
+/// 列の比較を各画面で書かないためにここに置く。一覧・チップ・ヘッダ・先読みで
+/// 同じ比較を別々に書いていて、条件が食い違いかけたため。
+extension LawFlags on Law {
+  bool get isReference => RepealStatus.isReference(repealStatus);
+
+  BodyCache get bodyCache {
+    if (bodyRevisionId == null) return BodyCache.none;
+    return bodyRevisionId == currentRevisionId
+        ? BodyCache.current
+        : BodyCache.outdated;
+  }
+}
+
+typedef CatalogEntry = ({LawSummary summary, String scopeReason});
+
 @DriftDatabase(tables: [Laws, LawRevisions, Articles, SyncRuns, AppMeta])
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
@@ -186,69 +209,77 @@ class AppDatabase extends _$AppDatabase {
     ];
   }
 
-  /// 一覧の行を反映する。
-  ///
-  /// `body_*` 列を同時に更新しないのは、一覧側のリビジョンと保存済み本文の
-  /// リビジョンを別々に持つことで「改正あり（未取得）」を表現するため。
-  /// 同じ理由で `missing_since` はここでリセットする（一覧に再登場した）。
-  Future<void> upsertLawFromCatalog(LawSummary s, String scopeReason) async {
-    final companion = LawsCompanion(
-      lawId: Value(s.lawId),
-      lawNum: Value(s.lawNum),
-      lawType: Value(s.lawType),
-      title: Value(s.title),
-      titleKana: Value(s.titleKana),
-      abbrev: Value(s.abbrev),
-      category: Value(s.category),
-      promulgationDate: Value(s.promulgationDate),
-      repealStatus: Value(s.repealStatus),
-      repealDate: Value(s.repealDate),
-      scopeReason: Value(scopeReason),
-      currentRevisionId: Value(s.currentRevisionId),
-      currentEnforcedAt: Value(s.currentEnforcedAt),
-      amendmentLawTitle: Value(s.amendmentLawTitle),
-      catalogUpdated: Value(s.updated),
-      pendingRevisionId: Value(s.pendingRevisionId),
-      missingSince: const Value(null),
-    );
-    await into(laws).insert(companion,
-        onConflict: DoUpdate((_) => companion, target: [laws.lawId]));
-  }
+  /// `body_*` 列を含めないのは、一覧側のリビジョンと保存済み本文のリビジョンを
+  /// 別々に持つことで「改正あり（未取得）」を表現するため。
+  /// `missing_since` を null で含めるのは、一覧に再登場した法令の印を消すため。
+  static LawsCompanion _fromCatalog(LawSummary s, String scopeReason) =>
+      LawsCompanion(
+        lawId: Value(s.lawId),
+        lawNum: Value(s.lawNum),
+        lawType: Value(s.lawType),
+        title: Value(s.title),
+        titleKana: Value(s.titleKana),
+        abbrev: Value(s.abbrev),
+        category: Value(s.category),
+        promulgationDate: Value(s.promulgationDate),
+        repealStatus: Value(s.repealStatus),
+        repealDate: Value(s.repealDate),
+        scopeReason: Value(scopeReason),
+        currentRevisionId: Value(s.currentRevisionId),
+        currentEnforcedAt: Value(s.currentEnforcedAt),
+        amendmentLawTitle: Value(s.amendmentLawTitle),
+        catalogUpdated: Value(s.updated),
+        pendingRevisionId: Value(s.pendingRevisionId),
+        missingSince: const Value(null),
+      );
 
-  Future<void> markMissing(String lawId, String at) =>
-      (update(laws)..where((t) => t.lawId.equals(lawId)))
-          .write(LawsCompanion(missingSince: Value(at)));
+  Future<void> upsertLawFromCatalog(LawSummary s, String scopeReason) =>
+      into(laws).insertOnConflictUpdate(_fromCatalog(s, scopeReason));
+
+  /// 1 バッチにするのは、行ごとに書くとコミットと変更通知が数百回走り、
+  /// 一覧の購読者がそのたびに再描画されるため。
+  Future<void> applyCatalogChanges({
+    required Iterable<CatalogEntry> present,
+    required Iterable<String> missing,
+    required String at,
+  }) =>
+      batch((b) {
+        b.insertAllOnConflictUpdate(laws, [
+          for (final e in present) _fromCatalog(e.summary, e.scopeReason),
+        ]);
+        for (final lawId in missing) {
+          b.update(laws, LawsCompanion(missingSince: Value(at)),
+              where: (t) => t.lawId.equals(lawId));
+        }
+      });
 
   Future<void> touchLaw(String lawId, String at) =>
       (update(laws)..where((t) => t.lawId.equals(lawId)))
           .write(LawsCompanion(lastOpenedAt: Value(at)));
 
-  Future<List<Law>> recentLaws({int limit = 10}) => (select(laws)
-        ..where((t) => t.lastOpenedAt.isNotNull())
-        ..orderBy([(t) => OrderingTerm.desc(t.lastOpenedAt)])
-        ..limit(limit))
-      .get();
-
   /// 法令名・略称・読みの部分一致。`terms` は正規化済みの候補語。
   Future<List<Law>> searchLawsByName(List<String> terms) async {
-    if (terms.isEmpty) return const [];
-    final q = select(laws);
-    Expression<bool>? where;
-    for (final t in terms) {
-      final pattern = '%${t.replaceAll('%', r'\%').replaceAll('_', r'\_')}%';
-      final e = laws.title.lower().like(pattern) |
-          laws.abbrev.lower().like(pattern) |
-          laws.titleKana.lower().like(pattern);
-      where = where == null ? e : (where | e);
-    }
-    q.where((_) => where!);
-    final rows = await q.get();
+    // drift の like() は ESCAPE 句を出さず、SQLite の LIKE に既定のエスケープ文字も
+    // 無いので、バックスラッシュでのエスケープは効かない。法令名に % と _ は
+    // 現れないので、ワイルドカードとして解釈させずに取り除く
+    final patterns = [
+      for (final t in terms)
+        if (t.replaceAll(RegExp('[%_]'), '') case final c when c.isNotEmpty)
+          '%$c%',
+    ];
+    if (patterns.isEmpty) return const [];
+    final rows = await (select(laws)
+          ..where((t) => Expression.or([
+                for (final p in patterns)
+                  t.title.lower().like(p) |
+                      t.abbrev.lower().like(p) |
+                      t.titleKana.lower().like(p),
+              ])))
+        .get();
     // SQL の ORDER BY にしないのは、廃止・失効を後ろに回す並びと題名長の並びを
     // 1 つの式にすると読みにくく、件数（数百）ではメモリ上で並べ替えても十分速いから
     rows.sort((a, b) {
-      final ra = a.repealStatus == 'None' ? 0 : 1;
-      final rb = b.repealStatus == 'None' ? 0 : 1;
-      if (ra != rb) return ra - rb;
+      if (a.isReference != b.isReference) return a.isReference ? 1 : -1;
       return a.title.length.compareTo(b.title.length);
     });
     return rows;

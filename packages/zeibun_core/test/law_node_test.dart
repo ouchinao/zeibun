@@ -1,10 +1,13 @@
+@TestOn('vm')
+library;
+
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:zeibun_core/zeibun_core.dart';
 
-import 'support/synthetic_law.dart';
+import 'package:zeibun_core/testing.dart';
 
 void main() {
   group('LawNode.fromJson', () {

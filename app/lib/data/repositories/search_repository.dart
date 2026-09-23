@@ -11,27 +11,19 @@ class SearchHit {
   final ArticleReference? article;
 }
 
+/// 組み込みの実務略称（法法・措法）だけにしないのは、API の `abbrev`（租特法）が
+/// 実務の略し方と一致しないことがあるため。
+LawAbbrevIndex abbrevIndexFor(Iterable<Law> laws) =>
+    LawAbbrevIndex().withApiAbbrevs([
+      for (final l in laws)
+        if (l.abbrev case final a? when a.isNotEmpty) MapEntry(a, l.title),
+    ]);
+
 class SearchRepository {
-  SearchRepository({required this.db, LawAbbrevIndex? abbrevs})
-      : _builtin = abbrevs ?? LawAbbrevIndex();
+  SearchRepository({required this.db, required this.abbrevs});
 
   final AppDatabase db;
-  final LawAbbrevIndex _builtin;
-  LawAbbrevIndex? _merged;
-
-  /// API の略称（`laws.abbrev`）を取り込んだ索引。
-  Future<LawAbbrevIndex> _index() async {
-    if (_merged != null) return _merged!;
-    final rows = await db.allLaws();
-    _merged = _builtin.withApiAbbrevs([
-      for (final r in rows)
-        if (r.abbrev != null && r.abbrev!.isNotEmpty)
-          MapEntry(r.abbrev!, r.title),
-    ]);
-    return _merged!;
-  }
-
-  void invalidate() => _merged = null;
+  final LawAbbrevIndex abbrevs;
 
   /// 入力を解釈して検索する。
   /// 1. 条番号を含めば「法令 + 条」のジャンプ候補
@@ -39,22 +31,17 @@ class SearchRepository {
   Future<List<SearchHit>> search(String input) async {
     final q = normalizeForSearch(input);
     if (q.isEmpty) return const [];
-    final index = await _index();
 
     final ref = parseArticleReference(q);
-    if (ref != null) {
-      final laws = await db.searchLawsByName(index.candidates(ref.lawQuery));
-      // 略称の完全一致（法法 → 法人税法）は先頭に
-      final full = index.expand(ref.lawQuery);
-      laws.sort((a, b) {
-        final ea = a.title == full ? 0 : 1;
-        final eb = b.title == full ? 0 : 1;
-        return ea - eb;
-      });
-      return [for (final l in laws) SearchHit(l, article: ref)];
+    if (ref == null) {
+      final laws = await db.searchLawsByName(abbrevs.candidates(q));
+      return [for (final l in laws) SearchHit(l)];
     }
-
-    final laws = await db.searchLawsByName(index.candidates(q));
-    return [for (final l in laws) SearchHit(l)];
+    final laws = await db.searchLawsByName(abbrevs.candidates(ref.lawQuery));
+    // DB の並び（題名の短い順）に任せないのは、候補語の部分一致では略称が指す
+    // 法令（法法 → 法人税法）が施行令・施行規則と同列になり得るため
+    final full = abbrevs.expand(ref.lawQuery);
+    laws.sort((a, b) => (a.title == full ? 0 : 1) - (b.title == full ? 0 : 1));
+    return [for (final l in laws) SearchHit(l, article: ref)];
   }
 }
