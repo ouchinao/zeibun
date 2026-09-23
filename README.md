@@ -5,9 +5,12 @@ e-Gov 法令API Version 2 から起動時に最新化し、端末内で検索・
 
 ## ドキュメント
 
-- [設計書](docs/design.md)
+- [設計書 v0.3](docs/design.md)
 - [e-Gov 法令API v2 調査メモ](docs/egov-law-api-v2.md)
+- [公式 OpenAPI 仕様 lawapi-v2.yaml v2.1.138](docs/lawapi-v2.yaml)
+- [Phase 0 スパイク（純 Dart）](spike/README.md)
 
 ## 出典
 
 法令データは [e-Gov法令検索](https://laws.e-gov.go.jp/)（デジタル庁）の法令APIから取得しています。
+本アプリはデジタル庁・e-Gov の公式アプリではありません。

@@ -23,5 +23,6 @@ dart pub get
 dart test
 ```
 
-実 API に対する `catalog` / `fetch` / `bench` コマンド（`bin/`）は設計の見直し後に追加する。
+実 API に対する `catalog` / `fetch` / `bench` コマンド（`bin/`）は、`laws.e-gov.go.jp` に到達できるセッションで追加・実行する
+（設計書 §13 Phase 0 の表 1〜5 を埋める。CORS 確認は `Origin` ヘッダ付きの `GET /laws` 1 回）。
 公式仕様は [`../docs/lawapi-v2.yaml`](../docs/lawapi-v2.yaml)（v2.1.138）に同梱。
