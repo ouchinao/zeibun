@@ -8,7 +8,7 @@ environment:
 
 dependencies:
   args: ^2.5.0
-  xml: ^6.5.0
+  xml: ^7.0.1
   zeibun_core:
     path: ../packages/zeibun_core
 
