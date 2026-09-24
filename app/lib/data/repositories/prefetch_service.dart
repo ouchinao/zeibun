@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:zeibun_core/zeibun_core.dart';
 
 import '../db/database.dart';
+import '../db/storage_errors.dart';
 import '../egov/egov_api.dart';
 import 'law_repository.dart';
 
@@ -48,7 +49,10 @@ enum PrefetchOutcome {
   /// 通信できない状態が続いたので途中でやめた
   offline,
 
-  /// 想定していない例外（DB の書き込み失敗など）で止めた
+  /// 端末の空き容量が尽きて書き込めなかった。続けても全件失敗するので止めた
+  storageFull,
+
+  /// 想定していない例外で止めた
   aborted,
 }
 
@@ -66,6 +70,7 @@ class PrefetchService {
     required this.db,
     required this.repo,
     this.maxConsecutiveOfflineFailures = 3,
+    this.keepScreenOn,
   });
 
   final AppDatabase db;
@@ -73,6 +78,12 @@ class PrefetchService {
 
   /// 最後まで試さずに打ち切るのは、圏外で 400 件ぶんのタイムアウトを待たせないため。
   final int maxConsecutiveOfflineFailures;
+
+  /// 実行中だけ画面の消灯を止める。保存は前面にある間しか進まず、消灯して背景に
+  /// 回ると通信失敗が続いて「通信できないため中断」で終わるため（Issue #13）。
+  /// プラグインを直接呼ばず注入にしているのは、このクラスを Flutter に依存しない
+  /// 純 Dart のままテストするため。
+  final Future<void> Function(bool on)? keepScreenOn;
 
   final ValueNotifier<PrefetchState> state =
       ValueNotifier(const PrefetchIdle());
@@ -104,6 +115,24 @@ class PrefetchService {
     // 対象を数え終わる前から「実行中」にする。待機のままだと、その間の再タップで
     // 画面が確認ダイアログをもう一度出してしまう
     state.value = const PrefetchRunning(PrefetchProgress());
+    await _setScreenOn(true);
+    try {
+      return state.value = await _fetchAll();
+    } finally {
+      await _setScreenOn(false);
+    }
+  }
+
+  /// 抑止の失敗で保存を止めないのは、抑止が保険で、無くても保存は成立するため。
+  Future<void> _setScreenOn(bool on) async {
+    try {
+      await keepScreenOn?.call(on);
+    } catch (e) {
+      debugPrint('prefetch: keep screen on ($on) failed: $e');
+    }
+  }
+
+  Future<PrefetchFinished> _fetchAll() async {
     var progress = const PrefetchProgress();
     var outcome = PrefetchOutcome.completed;
     try {
@@ -139,11 +168,16 @@ class PrefetchService {
         }
       }
     } catch (e) {
-      // 分類できない例外で「実行中」のまま残さない。残したままだと画面が進捗表示で
-      // 固まり、やり直す手段が無くなる
-      debugPrint('prefetch aborted: $e');
-      outcome = PrefetchOutcome.aborted;
+      if (isStorageFull(e)) {
+        // 法令ごとに数えて続けないのは、容量が尽きた後は残り全件が同じ失敗になるため
+        outcome = PrefetchOutcome.storageFull;
+      } else {
+        // 分類できない例外で「実行中」のまま残さない。残したままだと画面が進捗表示で
+        // 固まり、やり直す手段が無くなる
+        debugPrint('prefetch aborted: $e');
+        outcome = PrefetchOutcome.aborted;
+      }
     }
-    return state.value = PrefetchFinished(progress, outcome);
+    return PrefetchFinished(progress, outcome);
   }
 }
