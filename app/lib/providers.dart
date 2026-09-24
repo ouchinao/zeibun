@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:zeibun_core/zeibun_core.dart';
 
 import 'data/db/database.dart';
@@ -76,7 +77,8 @@ final syncStateProvider =
 final prefetchServiceProvider = Provider<PrefetchService>((ref) =>
     PrefetchService(
         db: ref.watch(databaseProvider),
-        repo: ref.watch(lawRepositoryProvider)));
+        repo: ref.watch(lawRepositoryProvider),
+        keepScreenOn: (on) => WakelockPlus.toggle(enable: on)));
 
 final prefetchStateProvider =
     NotifierProvider<ListenableStateNotifier<PrefetchState>, PrefetchState>(

@@ -141,15 +141,21 @@ class _FinishedCard extends StatelessWidget {
       PrefetchOutcome.completed => '保存が完了しました（$summary）',
       PrefetchOutcome.cancelled => '中断しました（$summary）',
       PrefetchOutcome.offline => '通信できないため中断しました（$summary）',
+      PrefetchOutcome.storageFull => '端末の空き容量が足りないため中断しました（$summary）',
       PrefetchOutcome.aborted => 'エラーのため中断しました（$summary）',
+    };
+    final note = switch (s.outcome) {
+      PrefetchOutcome.storageFull => '保存済みの法令はそのまま使えます。空き容量を増やしてから再実行してください。',
+      _ when s.progress.failed > 0 || s.outcome == PrefetchOutcome.aborted =>
+        '取れなかった法令は次回の実行、または法令を開いたときに取り直します。',
+      _ => null,
     };
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Text(headline),
-      if (s.progress.failed > 0 || s.outcome == PrefetchOutcome.aborted)
+      if (note != null)
         Padding(
           padding: const EdgeInsets.only(top: 4),
-          child: Text('取れなかった法令は次回の実行、または法令を開いたときに取り直します。',
-              style: Theme.of(context).textTheme.bodySmall),
+          child: Text(note, style: Theme.of(context).textTheme.bodySmall),
         ),
       const SizedBox(height: 12),
       _StartCard(remaining: remaining, onStart: onStart),

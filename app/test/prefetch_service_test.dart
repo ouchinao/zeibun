@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqlite3/common.dart';
 import 'package:zeibun/data/db/database.dart';
 import 'package:zeibun/data/egov/egov_api.dart';
 import 'package:zeibun/data/repositories/law_repository.dart';
@@ -6,6 +7,18 @@ import 'package:zeibun/data/repositories/prefetch_service.dart';
 import 'package:zeibun/data/repositories/sync_service.dart';
 
 import 'support/fake_egov_api.dart';
+
+/// 端末の空き容量が尽きたときに SQLite が返す例外を、保存の段で起こす。
+class _FullDiskRepository extends LawRepository {
+  _FullDiskRepository({required super.api, required super.db});
+
+  @override
+  Future<int> fetchBody(String lawId, String revisionId,
+          {required bool includeAmendSuppl}) async =>
+      throw SqliteException(
+          extendedResultCode: SqlError.SQLITE_FULL,
+          message: 'database or disk is full');
+}
 
 void main() {
   late AppDatabase db;
@@ -111,5 +124,58 @@ void main() {
     final second = service.start();
     expect(identical(await first, await second), isTrue);
     expect(api.calls.length, 12);
+  });
+
+  test('a full disk ends the run as storageFull, not as a generic abort',
+      () async {
+    final full =
+        PrefetchService(db: db, repo: _FullDiskRepository(api: api, db: db));
+    final result = await full.start() as PrefetchFinished;
+    expect(result.outcome, PrefetchOutcome.storageFull);
+    expect(result.progress.done, 0);
+    expect(await savedCount(), 0);
+  });
+
+  group('keeps the screen on only while a run is in progress', () {
+    late List<bool> screen;
+    late PrefetchService withScreen;
+    setUp(() {
+      screen = [];
+      withScreen = PrefetchService(
+          db: db,
+          repo: LawRepository(api: api, db: db),
+          keepScreenOn: (on) async => screen.add(on));
+    });
+
+    test('for a completed run', () async {
+      await withScreen.start();
+      expect(screen, [true, false]);
+    });
+
+    test('for a cancelled run', () async {
+      withScreen.state.addListener(() {
+        if (withScreen.state.value is PrefetchRunning) withScreen.cancel();
+      });
+      await withScreen.start();
+      expect(screen, [true, false]);
+    });
+
+    test('for an aborted run', () async {
+      final broken = (await db.getLaw('340AC0000000034'))!.currentRevisionId!;
+      api.onPath('/api/2/law_data/$broken', (_) => throw StateError('boom'));
+      final result = await withScreen.start() as PrefetchFinished;
+      expect(result.outcome, PrefetchOutcome.aborted);
+      expect(screen, [true, false]);
+    });
+
+    test('a wakelock that fails does not stop the run', () async {
+      final fragile = PrefetchService(
+          db: db,
+          repo: LawRepository(api: api, db: db),
+          keepScreenOn: (_) async => throw UnsupportedError('no wakelock'));
+      final result = await fragile.start() as PrefetchFinished;
+      expect(result.outcome, PrefetchOutcome.completed);
+      expect(result.progress.done, 12);
+    });
   });
 }
