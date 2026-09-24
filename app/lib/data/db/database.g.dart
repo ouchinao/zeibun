@@ -3864,8 +3864,10 @@ class $$LawsTableTableManager extends RootTableManager<
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) =>
-                  (e.readTable(table), $$LawsTableReferences(db, table, e)))
+              .map((e) => (
+                    e.readTable<$LawsTable, Law>(table),
+                    $$LawsTableReferences(db, table, e)
+                  ))
               .toList(),
           prefetchHooksCallback: (
               {lawRevisionsRefs = false,
@@ -4287,7 +4289,7 @@ class $$LawRevisionsTableTableManager extends RootTableManager<
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (
-                    e.readTable(table),
+                    e.readTable<$LawRevisionsTable, LawRevision>(table),
                     $$LawRevisionsTableReferences(db, table, e)
                   ))
               .toList(),
@@ -4675,8 +4677,10 @@ class $$ArticlesTableTableManager extends RootTableManager<
             bodyJson: bodyJson,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) =>
-                  (e.readTable(table), $$ArticlesTableReferences(db, table, e)))
+              .map((e) => (
+                    e.readTable<$ArticlesTable, Article>(table),
+                    $$ArticlesTableReferences(db, table, e)
+                  ))
               .toList(),
           prefetchHooksCallback: ({lawId = false}) {
             return PrefetchHooks(
@@ -4915,7 +4919,11 @@ class $$SyncRunsTableTableManager extends RootTableManager<
             error: error,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map((e) => (
+                    e.readTable<$SyncRunsTable, SyncRun>(table),
+                    BaseReferences<_$AppDatabase, $SyncRunsTable, SyncRun>(
+                        db, table, e)
+                  ))
               .toList(),
           prefetchHooksCallback: null,
         ));
@@ -5035,7 +5043,11 @@ class $$AppMetaTableTableManager extends RootTableManager<
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map((e) => (
+                    e.readTable<$AppMetaTable, AppMetaData>(table),
+                    BaseReferences<_$AppDatabase, $AppMetaTable, AppMetaData>(
+                        db, table, e)
+                  ))
               .toList(),
           prefetchHooksCallback: null,
         ));
@@ -5250,7 +5262,7 @@ class $$BookmarksTableTableManager extends RootTableManager<
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (
-                    e.readTable(table),
+                    e.readTable<$BookmarksTable, Bookmark>(table),
                     $$BookmarksTableReferences(db, table, e)
                   ))
               .toList(),
