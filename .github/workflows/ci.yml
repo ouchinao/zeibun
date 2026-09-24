@@ -74,3 +74,26 @@ jobs:
       - run: flutter test --timeout 60s
       # Web 版は当面出さないが、Web で動く状態を保つ（設計書 §9）
       - run: flutter build web --release
+
+  # Android は v1 では出さず手元でも組まないので、Gradle / AGP / Kotlin の更新で
+  # 静かに壊れるのを PR で検知する（設計書 §13 Phase R R11）。iOS は macOS ランナーが
+  # 要るので手元でビルドする
+  flutter-android:
+    name: app (build apk)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      # 1 ABI に絞るのは、SQLite を hooks でコンパイルするので ABI ごとに時間がかかるため
+      - run: flutter build apk --debug --target-platform android-arm64

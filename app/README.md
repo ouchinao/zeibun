@@ -13,6 +13,7 @@ lib/
 ├── app_notices.dart             出典・免責の文言（1 箇所）
 ├── data/                        通信と保存。画面からは Provider 経由でしか触らない
 │   ├── db/database.dart          drift スキーマ（設計書 §5）と DAO、`Law` 行の状態（LawFlags）
+│   ├── db/database_location.dart DB の置き場（Application Support/db。iOS はバックアップ除外を AppDelegate に依頼）
 │   ├── egov/egov_api.dart        dio クライアント（5 req/s、再試行、受信上限、失敗種別 EgovErrorKind）
 │   └── repositories/
 │       ├── sync_service.dart     起動時同期・手動更新（§4.2）、バックオフ（§4.6）、二重実行の抑止

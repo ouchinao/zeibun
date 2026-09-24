@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zeibun_core/zeibun_core.dart';
 
 import 'data/db/database.dart';
+import 'data/db/database_location.dart';
 import 'data/egov/egov_api.dart';
 import 'data/repositories/bookmark_repository.dart';
 import 'data/repositories/law_repository.dart';
@@ -17,6 +18,7 @@ import 'features/settings/settings_controller.dart';
 /// 端末内 SQLite。Web では OPFS（drift の wasm 構成）。
 QueryExecutor openDefaultExecutor() => driftDatabase(
       name: 'zeibun',
+      native: const DriftNativeOptions(databaseDirectory: databaseDirectory),
       web: DriftWebOptions(
         sqlite3Wasm: Uri.parse('sqlite3.wasm'),
         driftWorker: Uri.parse('drift_worker.js'),
