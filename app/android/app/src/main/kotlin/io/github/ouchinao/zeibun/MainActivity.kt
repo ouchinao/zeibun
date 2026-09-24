@@ -1,4 +1,4 @@
-package jp.zeibun.zeibun
+package io.github.ouchinao.zeibun
 
 import io.flutter.embedding.android.FlutterActivity
 
