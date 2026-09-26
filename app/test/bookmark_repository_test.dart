@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zeibun/data/db/database.dart';
 import 'package:zeibun/data/repositories/bookmark_repository.dart';
 import 'package:zeibun/data/repositories/law_repository.dart';
-import 'package:zeibun/data/repositories/sync_service.dart';
+import 'package:zeibun/data/services/sync_service.dart';
 
 import 'support/fake_egov_api.dart';
 

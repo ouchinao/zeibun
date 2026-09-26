@@ -11,7 +11,7 @@ class ArticleItem {
   ArticleItem(this._row);
   final Article _row;
 
-  String get section => _row.section;
+  ArticleSection get section => _row.sectionKind;
   String? get articleNum => _row.articleNum;
   String? get articleTitle => _row.articleTitle;
   String? get caption => _row.caption;
@@ -44,7 +44,7 @@ class LawText {
     final suppl = <String?, List<ArticleItem>>{};
     for (final a in r.articles) {
       final item = ArticleItem(a);
-      if (a.section == 'suppl') {
+      if (a.sectionKind == ArticleSection.suppl) {
         suppl.putIfAbsent(a.supplAmendLawNum, () => []).add(item);
       } else {
         main.add(item);
@@ -65,7 +65,7 @@ class LawText {
   }
 
   final BodyStatus status;
-  final BodyFailure? failure;
+  final FetchFailure? failure;
 
   /// 附則を含めないのは、条番号ジャンプ・目次・本文内検索が本則と別表を対象にするため。
   final List<ArticleItem> main;

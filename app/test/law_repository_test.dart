@@ -1,7 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqlite3/common.dart';
 import 'package:zeibun/data/db/database.dart';
 import 'package:zeibun/data/repositories/law_repository.dart';
-import 'package:zeibun/data/repositories/sync_service.dart';
+import 'package:zeibun/data/services/sync_service.dart';
 import 'package:zeibun_core/zeibun_core.dart';
 
 import 'support/fake_egov_api.dart';
@@ -58,7 +59,7 @@ void main() {
     final law = (await db.getLaw(lawId))!;
     serveBody(law.currentRevisionId!);
     await repo().openLaw(lawId);
-    final r = await repo().openLaw(lawId, includeAmendSuppl: true);
+    final r = await repo().openLaw(lawId, request: BodyRequest.withAmendSuppl);
     expect(r.status, BodyStatus.fetched);
     final call = api.calls.last;
     expect(call.queryParameters.containsKey('omit_amendment_suppl_provision'),
@@ -78,7 +79,7 @@ void main() {
             '<law_revision_id>426AC0000000011_20000101_000000000000000</law_revision_id>'));
     final r = await repo().openLaw(lawId);
     expect(r.status, BodyStatus.unavailable);
-    expect(r.failure, BodyFailure.invalidData);
+    expect(r.failure, FetchFailure.invalidData);
     expect((await db.getLaw(lawId))!.bodyCache, BodyCache.none);
     expect(await db.articlesOf(lawId), isEmpty);
   });
@@ -106,7 +107,7 @@ void main() {
     api.offline = true;
     final r = await repo().openLaw(lawId);
     expect(r.status, BodyStatus.stale);
-    expect(r.failure, BodyFailure.offline);
+    expect(r.failure, FetchFailure.offline);
     expect(r.articles, isNotEmpty);
     final after = (await db.getLaw(lawId))!;
     expect(after.bodyRevisionId, law.currentRevisionId); // 古いまま
@@ -138,9 +139,11 @@ void main() {
       'and falls back to it offline', () async {
     api.onPath('/api/2/law_revisions/340AC0000000034',
         (_) => fixture('law_revisions_340AC0000000034_法人税法.json'));
-    final revs = await repo().refreshRevisions('340AC0000000034');
+    final first = await repo().refreshRevisions('340AC0000000034');
+    final revs = first.revisions;
+    expect(first.failure, isNull);
     expect(revs, isNotEmpty);
-    expect(revs.where((r) => r.status == 'UnEnforced'), isNotEmpty);
+    expect(revs.where((r) => r.isUnenforced), isNotEmpty);
     expect(revs.first.enforcedAt.compareTo(revs.last.enforcedAt),
         greaterThanOrEqualTo(0));
     final calls = api.calls.length;
@@ -153,6 +156,27 @@ void main() {
     api.offline = true;
     final cached = await repo().refreshRevisions('340AC0000000034');
     expect(api.calls.length, calls + 1);
-    expect(cached.length, revs.length);
+    expect(cached.revisions.length, revs.length);
+    expect(cached.failure, FetchFailure.offline);
   });
+
+  test('a full disk while saving the body is reported as storageFull',
+      () async {
+    final law = (await db.getLaw(lawId))!;
+    serveBody(law.currentRevisionId!);
+    final r = await _FullDiskRepository(api: api, db: db).openLaw(lawId);
+    expect(r.status, BodyStatus.unavailable);
+    expect(r.failure, FetchFailure.storageFull);
+  });
+}
+
+class _FullDiskRepository extends LawRepository {
+  _FullDiskRepository({required super.api, required super.db});
+
+  @override
+  Future<int> fetchBody(String lawId, String revisionId,
+          {required bool includeAmendSuppl}) async =>
+      throw SqliteException(
+          extendedResultCode: SqlError.SQLITE_FULL,
+          message: 'database or disk is full');
 }

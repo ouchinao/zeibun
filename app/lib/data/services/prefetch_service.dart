@@ -4,7 +4,7 @@ import 'package:zeibun_core/zeibun_core.dart';
 import '../db/database.dart';
 import '../db/storage_errors.dart';
 import '../egov/egov_api.dart';
-import 'law_repository.dart';
+import '../repositories/law_repository.dart';
 
 /// 進み具合。実行中と終了後で同じ数字を見せるので 1 つの型にまとめる。
 class PrefetchProgress {

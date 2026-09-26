@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:zeibun_core/zeibun_core.dart';
 
 import '../db/database.dart';
+import '../db/storage_errors.dart';
 import '../egov/egov_api.dart';
 
 /// 本文の取得結果。
@@ -22,22 +23,57 @@ enum BodyStatus {
 }
 
 /// 取得できなかった理由。例外をそのまま画面に渡さないのは、画面が dio や
-/// XML の例外型を知らずに文言を選べるようにするため。
-enum BodyFailure {
+/// XML や SQLite の例外型を知らずに文言を選べるようにするため。
+/// 本文と改正履歴で同じ型なのは、どちらも「通信 → 検証 → 保存」で失敗の
+/// 種類が同じだから。
+enum FetchFailure {
   offline,
 
   /// 4xx/5xx と受信上限超過。e-Gov 側の応答なので再試行しても直らない
   server,
 
-  /// XML の異常とリビジョン不一致
+  /// XML / JSON の異常とリビジョン不一致
   invalidData,
+
+  /// 端末の空き容量が尽きて保存できなかった。通信失敗と同じ「再試行」に
+  /// 寄せないのは、空きを作らない限り何度やっても同じ結果だから
+  storageFull,
 }
+
+/// 分類できない例外に「その他」の値を用意しないのは、画面が生の例外文字列を
+/// 文言に流し込む逃げ道になるため。null を返し、呼び出し側で投げ直す。
+FetchFailure? classifyFetchError(Object e) => switch (e) {
+      EgovApiException(kind: final k) when k.isOffline => FetchFailure.offline,
+      EgovApiException() => FetchFailure.server,
+      FormatException() || RevisionMismatch() => FetchFailure.invalidData,
+      _ when isStorageFull(e) => FetchFailure.storageFull,
+      _ => null,
+    };
 
 class BodyLoadResult {
   const BodyLoadResult(this.status, this.articles, {this.failure});
   final BodyStatus status;
   final List<Article> articles;
-  final BodyFailure? failure;
+  final FetchFailure? failure;
+}
+
+/// 本文をどう開くか。`bool?` と `force` の組み合わせにしないのは、
+/// 「null で前回設定を引き継ぐ」が呼び出し側で読めなかったため。
+enum BodyRequest {
+  /// 前回の設定（改正附則を含むか）のまま。キャッシュが現行なら通信しない
+  keepSetting,
+
+  /// 改正附則込みで取り直し、以後その設定で保存する
+  withAmendSuppl,
+
+  /// キャッシュが現行でも取り直す（再試行ボタン）
+  refresh,
+}
+
+class RevisionsResult {
+  const RevisionsResult(this.revisions, {this.failure});
+  final List<LawRevision> revisions;
+  final FetchFailure? failure;
 }
 
 /// 法令を開くときの本文取得・キャッシュ（設計書 §4.2 a〜c、§4.5）。
@@ -59,39 +95,34 @@ class LawRepository {
   final Duration revisionsMaxAge;
 
   /// 法令を開く。キャッシュが現行なら通信せず返す。違えば取得して差し替える。
-  ///
-  /// [includeAmendSuppl] を指定すると、その設定で取り直す（改正附則の読み込み）。
-  /// 省略時は前回の設定（`body_includes_amend_suppl`）を引き継ぐ。
   Future<BodyLoadResult> openLaw(String lawId,
-      {bool? includeAmendSuppl, bool force = false}) async {
+      {BodyRequest request = BodyRequest.keepSetting}) async {
     final law = await db.getLaw(lawId);
     if (law == null) {
       return const BodyLoadResult(BodyStatus.unavailable, []);
     }
     await db.touchLaw(lawId, _clock().toIso8601String());
-    final wantSuppl = includeAmendSuppl ?? law.bodyIncludesAmendSuppl;
+    final wantSuppl =
+        request == BodyRequest.withAmendSuppl || law.bodyIncludesAmendSuppl;
     final rev = law.currentRevisionId;
     if (rev == null) return _fromCache(lawId);
     final cachedIsCurrent =
         law.bodyRevisionId == rev && law.bodyIncludesAmendSuppl == wantSuppl;
-    if (cachedIsCurrent && !force) {
+    if (cachedIsCurrent && request != BodyRequest.refresh) {
       return BodyLoadResult(BodyStatus.fresh, await db.articlesOf(lawId));
     }
     try {
       await fetchBody(lawId, rev, includeAmendSuppl: wantSuppl);
       return BodyLoadResult(BodyStatus.fetched, await db.articlesOf(lawId));
-    } on EgovApiException catch (e) {
-      return _fromCache(lawId,
-          failure: e.kind.isOffline ? BodyFailure.offline : BodyFailure.server);
-    } on FormatException {
-      return _fromCache(lawId, failure: BodyFailure.invalidData);
-    } on RevisionMismatch {
-      return _fromCache(lawId, failure: BodyFailure.invalidData);
+    } catch (e) {
+      final failure = classifyFetchError(e);
+      if (failure == null) rethrow;
+      return _fromCache(lawId, failure: failure);
     }
   }
 
   Future<BodyLoadResult> _fromCache(String lawId,
-      {BodyFailure? failure}) async {
+      {FetchFailure? failure}) async {
     final cached = await db.articlesOf(lawId);
     return BodyLoadResult(
       cached.isEmpty ? BodyStatus.unavailable : BodyStatus.stale,
@@ -145,7 +176,9 @@ class LawRepository {
         await fetchBody(c.lawId, rev,
             includeAmendSuppl: law.bodyIncludesAmendSuppl);
       } catch (e) {
-        // 先読みは補助なので、1 件の失敗で残りを止めない。開いたときに取り直す
+        // 空き容量が尽きたら残りも全部失敗するので、同期側に伝えて止める
+        if (isStorageFull(e)) rethrow;
+        // それ以外は補助なので、1 件の失敗で残りを止めない。開いたときに取り直す
         debugPrint('prefetch failed for ${c.lawId}: $e');
       }
     }
@@ -153,15 +186,18 @@ class LawRepository {
 
   /// タブを開くたびに取り直さないのは、改正履歴が日に何度も変わるものではなく、
   /// 同じ法令を行き来するだけで e-Gov へのリクエストが増えるため。
-  Future<List<LawRevision>> refreshRevisions(String lawId) async {
+  /// 失敗を握りつぶさず [FetchFailure] で返すのは、履歴が空のとき画面が
+  /// 「オフライン？」と推測せずに理由を言い切るため。
+  Future<RevisionsResult> refreshRevisions(String lawId) async {
     final cached = await db.revisionsOf(lawId);
     if (cached.isNotEmpty) {
       final fetchedAt = DateTime.tryParse(cached.first.fetchedAt);
       if (fetchedAt != null &&
           _clock().difference(fetchedAt) < revisionsMaxAge) {
-        return cached;
+        return RevisionsResult(cached);
       }
     }
+    FetchFailure? failure;
     try {
       final body = await api.getJson(requests.lawRevisions(lawId));
       final revs = [
@@ -169,12 +205,12 @@ class LawRepository {
           LawRevisionInfo.fromApi((r as Map).cast<String, dynamic>()),
       ];
       await db.replaceRevisions(lawId, revs, _clock().toIso8601String());
-    } on EgovApiException catch (e) {
+    } catch (e) {
+      failure = classifyFetchError(e);
+      if (failure == null) rethrow;
       debugPrint('revisions fetch failed for $lawId: $e');
-    } on FormatException catch (e) {
-      debugPrint('revisions response malformed for $lawId: $e');
     }
-    return db.revisionsOf(lawId);
+    return RevisionsResult(await db.revisionsOf(lawId), failure: failure);
   }
 
   /// 一覧まで消さないのは、消した直後にオフラインでも検索と一覧が使えるようにするため。

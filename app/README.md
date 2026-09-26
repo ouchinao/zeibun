@@ -9,36 +9,41 @@ Flutter 非依存のロジック（法令 XML のツリー・条文パーサ・�
 ```
 lib/
 ├── main.dart / app.dart / router.dart
-├── providers.dart               DB・API・リポジトリ・一覧ストリームなど基盤の Provider
+├── providers.dart               DB・API・リポジトリ・サービス・一覧ストリームなど、複数の機能が共有する基盤の Provider
 ├── app_notices.dart             出典・免責の文言（1 箇所）
 ├── data/                        通信と保存。画面からは Provider 経由でしか触らない
-│   ├── db/database.dart          drift スキーマ（設計書 §5）と DAO、`Law` 行の状態（LawFlags）
+│   ├── db/database.dart          drift スキーマ（設計書 §5）と DAO、行の状態を読む拡張（LawFlags、ArticleSection、RevisionTiming、SyncRunStatus）
 │   ├── db/database_location.dart DB の置き場（Application Support/db。iOS はバックアップ除外を AppDelegate に依頼）
 │   ├── db/storage_errors.dart    SQLite の例外から「空き容量が尽きた」を見分ける
 │   ├── egov/egov_api.dart        dio クライアント（5 req/s、再試行、受信上限、失敗種別 EgovErrorKind）
-│   └── repositories/
-│       ├── sync_service.dart     起動時同期・手動更新（§4.2）、バックオフ（§4.6）、二重実行の抑止
-│       ├── law_repository.dart   本文の取得・検証・キャッシュ（§4.5）、改正時の先読み、改正履歴
-│       ├── prefetch_service.dart 全法令の保存（§4.4）: 逐次取得・進捗・中断・通信失敗での打ち切り
-│       ├── bookmark_repository.dart ブックマークの登録・解除・一覧（時刻の付与）
-│       └── search_repository.dart 法令名検索・略称展開・条番号ジャンプ・横断全文検索（§6）
-├── features/                    画面（機能単位）
-│   ├── home/        検索窓・同期バナー・最近開いた法令・ブックマーク・主要税法・初回免責
+│   ├── platform/network_kind.dart 回線の種類（Wi-Fi / モバイル / 不明）
+│   ├── repositories/
+│   │   ├── law_repository.dart   本文の取得・検証・キャッシュ（§4.5）、改正時の先読み、改正履歴。失敗は FetchFailure に分類
+│   │   ├── bookmark_repository.dart ブックマークの登録・解除・一覧（時刻の付与）
+│   │   └── search_repository.dart 法令名検索・略称展開・条番号ジャンプ・横断全文検索（§6）
+│   └── services/
+│       ├── sync_service.dart     起動時同期・手動更新（§4.2）、バックオフ（§4.6）、二重実行の抑止、同期ログ
+│       └── prefetch_service.dart 全法令の保存（§4.4）: 逐次取得・進捗・中断・通信失敗での打ち切り
+├── features/                    画面（機能単位）。機能だけが使う Provider はその機能のフォルダに置く
+│   ├── home/        検索窓・同期バナー・最近開いた法令（home_providers）・ブックマーク・主要税法・初回免責
 │   ├── bookmarks/   ブックマークの Provider、ホームの一覧、法令画面のしおりボタン
-│   ├── search/      検索結果（条番号ジャンプの候補を含む）
+│   ├── search/      検索結果（法令名の候補と条文のヒット。法令名で 0 件のときは本文タブの件数を案内）
 │   ├── law_list/    法令一覧（分類・種別、末尾に「廃止・失効（参考）」）
-│   ├── law_viewer/  閲覧。law_page（枠）、in_text_search（本文内検索の一致計算）、main_tab / suppl_tab / revisions_tab、
-│   │                toc_drawer、article_menu、law_text（画面用モデル）、law_node_renderer
+│   ├── law_viewer/  閲覧。law_page（枠とスクロール）、law_body_controller（本文の取得）、in_text_search_controller（本文内検索の状態）、
+│   │                in_text_search（一致計算）、main_tab / suppl_tab / revisions_tab、toc_drawer、article_menu（表示と実行を分ける）、
+│   │                law_text（画面用モデル）、law_node_renderer
 │   ├── sync/        同期状態バナー
-│   └── settings/    設定の Notifier（SharedPreferences）、設定画面、全法令を端末に保存する画面
-└── util/           format（日時・種別・バイト数）、highlight（検索語の強調）
+│   ├── prefetch/    全法令を端末に保存する画面と、開始前の回線確認（prefetch_providers の PrefetchLauncher）
+│   └── settings/    設定の Notifier（SharedPreferences）、設定画面
+└── util/           format（日時・種別・バイト数）、highlight（検索語の強調）、external_link（外部ブラウザを開く）
 ```
 
 層の決まり:
 
-- 画面は `data/` を直接 import しない（`Law` などの行型と `providers.dart` を通す）。通信・DB 操作は Repository / Service に置く
-- 画面の状態は bool を並べず、`sealed class`（同期状態）・`enum`（本文の取得結果・失敗理由・保存状態）・小さな状態クラス（本文内検索）にまとめる
-- 失敗は種類で分ける: 通信環境（オフライン）／e-Gov 側の異常／受け取ったデータの異常。バナーと本文ヘッダの文言はこれで変わる
+- 画面は `data/` の行型・結果型・状態型を import してよいが、DB や API を直接呼ばない。通信・DB 操作は Repository / Service に置き、画面は `providers.dart` 経由で呼ぶ
+- 画面の状態は bool を並べず、`sealed class`（同期状態・保存状態）・`enum`（本文の取得結果・失敗理由・条の区分・改正履歴の位置）・小さな状態クラス（本文内検索）にまとめる
+- 失敗は種類で分ける（`FetchFailure`）: 通信環境（オフライン）／e-Gov 側の異常／受け取ったデータの異常／端末の空き容量不足。バナー・本文ヘッダ・改正履歴の文言はこれで変わる。分類できない例外は Repository が投げ直し、画面は固定の文言を出す
+- 一回きりの問い合わせ（メニューを開く瞬間のブックマーク状態、保存開始前の回線種別）は Provider の `.future` を読まず、Repository の単発メソッドか関数を使う。autoDispose の Provider は購読者が無いとその場で破棄されて例外になる
 
 ## 開発
 

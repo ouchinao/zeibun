@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/db/database.dart';
 import 'law_node_renderer.dart';
@@ -6,19 +7,19 @@ import 'law_text.dart';
 
 typedef SupplFocus = ({int group, int article});
 
+/// `loading` と `groups` を別々に受け取らないのは、「読み込み中なのに附則が
+/// ある」のような組み合わせが増え、本文タブと違う判断をし始めるため。
 class SupplTab extends StatefulWidget {
   const SupplTab({
     super.key,
     required this.law,
-    required this.groups,
-    required this.loading,
+    required this.text,
     required this.highlight,
     required this.onLoadAmendSuppl,
     this.focus,
   });
   final Law law;
-  final List<SupplGroup> groups;
-  final bool loading;
+  final AsyncValue<LawText> text;
   final List<String> highlight;
   final VoidCallback onLoadAmendSuppl;
   final SupplFocus? focus;
@@ -58,7 +59,8 @@ class _SupplTabState extends State<SupplTab> {
 
   @override
   Widget build(BuildContext context) {
-    final groups = widget.groups;
+    final loading = widget.text.isLoading;
+    final groups = widget.text.value?.supplGroups ?? const <SupplGroup>[];
     final focus = widget.focus;
     return ListView(
       children: [
@@ -75,17 +77,17 @@ class _SupplTabState extends State<SupplTab> {
                   ),
                   const SizedBox(height: 8),
                   FilledButton.tonalIcon(
-                    onPressed: widget.loading ? null : widget.onLoadAmendSuppl,
+                    onPressed: loading ? null : widget.onLoadAmendSuppl,
                     icon: const Icon(Icons.download),
                     label: const Text('改正附則を読み込む'),
                   ),
-                  if (widget.loading)
+                  if (loading)
                     const Padding(
                         padding: EdgeInsets.only(top: 8),
                         child: LinearProgressIndicator()),
                 ]),
           ),
-        if (groups.isEmpty && !widget.loading)
+        if (groups.isEmpty && !loading)
           const Padding(padding: EdgeInsets.all(16), child: Text('附則はありません')),
         for (var gi = 0; gi < groups.length; gi++)
           ExpansionTile(

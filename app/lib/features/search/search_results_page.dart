@@ -35,6 +35,41 @@ class SearchResultsPage extends StatelessWidget {
   }
 }
 
+/// 法令名で 0 件のときに本文タブの件数を出すのは、条文の語（「役員 損金の額」など）
+/// で検索すると法令タブが先に見え、ヒットが無いように見えるため。
+class _NoLawHits extends ConsumerWidget {
+  const _NoLawHits({required this.query});
+  final String query;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fullText =
+        ref.watch(fullTextProvider(initialFullTextCriteria(query))).value;
+    final n = fullText?.totalHits ?? 0;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              n > 0
+                  ? '該当する法令がありません。\n本文タブに $n 件の条文があります。'
+                  : '該当する法令がありません。\n法令一覧の取得が済んでいるか、同期状態を確認してください。',
+              textAlign: TextAlign.center,
+            ),
+            if (n > 0)
+              TextButton(
+                onPressed: () => DefaultTabController.of(context).animateTo(1),
+                child: const Text('本文タブを開く'),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _LawResults extends ConsumerWidget {
   const _LawResults({required this.query});
   final String query;
@@ -46,11 +81,7 @@ class _LawResults extends ConsumerWidget {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('検索エラー: $e')),
       data: (hits) {
-        if (hits.isEmpty) {
-          return const Center(
-              child: Text('該当する法令がありません。\n法令一覧の取得が済んでいるか、同期状態を確認してください。',
-                  textAlign: TextAlign.center));
-        }
+        if (hits.isEmpty) return _NoLawHits(query: query);
         final jump = hits.first.article;
         return ListView.builder(
           itemCount: hits.length + (jump != null ? 1 : 0),

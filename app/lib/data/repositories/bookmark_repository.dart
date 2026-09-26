@@ -13,6 +13,12 @@ class BookmarkRepository {
   Stream<bool> watchIsBookmarked(String lawId, {String? articleNum}) =>
       db.watchIsBookmarked(lawId, articleNum);
 
+  /// 一回きりの問い合わせ。メニューの項目名のように「開く瞬間の値」だけ要る
+  /// ところで使う。ストリームの Provider を一回読みに使うと、購読者が無いまま
+  /// 破棄されて例外になる。
+  Future<bool> isBookmarked(String lawId, {String? articleNum}) =>
+      db.isBookmarked(lawId, articleNum);
+
   /// 付いた後の状態を返す（true なら追加された）。
   Future<bool> toggle(String lawId, {String? articleNum}) =>
       db.toggleBookmark(lawId,

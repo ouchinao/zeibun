@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zeibun/app.dart';
 import 'package:zeibun/data/db/database.dart';
-import 'package:zeibun/data/repositories/sync_service.dart';
+import 'package:zeibun/data/services/sync_service.dart';
 import 'package:zeibun/features/bookmarks/bookmark_providers.dart';
 import 'package:zeibun/features/law_viewer/law_node_renderer.dart';
 import 'package:zeibun/features/settings/settings_controller.dart';
