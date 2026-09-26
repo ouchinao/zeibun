@@ -25,6 +25,7 @@ dependencies:
   path: ^1.9.1
   wakelock_plus: ^1.8.0
   sqlite3: ^3.6.0
+  package_info_plus: ^10.2.1
 
 dev_dependencies:
   flutter_test:
@@ -32,6 +33,19 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   drift_dev: ^2.22.0
   build_runner: ^2.4.13
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
+
+# 原画を assets/icon/ に置いておくのは、公開後に差し替えるとき同じ手順
+# （`dart run flutter_launcher_icons`）で全サイズを生成し直すため（設計書 R2）
+flutter_launcher_icons:
+  image_path: assets/icon/icon.png
+  ios: true
+  remove_alpha_ios: true
+  android: true
+  adaptive_icon_background: "#1F3A5F"
+  adaptive_icon_foreground: assets/icon/icon_foreground.png
+  web:
+    generate: false
