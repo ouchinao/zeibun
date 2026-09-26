@@ -6,9 +6,9 @@ import 'package:zeibun_core/zeibun_core.dart';
 import '../../data/db/database.dart';
 import '../../providers.dart';
 import '../bookmarks/bookmark_law_button.dart';
-import '../bookmarks/bookmark_providers.dart';
 import 'article_menu.dart';
 import 'in_text_search.dart';
+import 'in_text_search_controller.dart';
 import 'law_body_controller.dart';
 import 'law_text.dart';
 import 'main_tab.dart';
@@ -48,11 +48,13 @@ class _LawPageState extends ConsumerState<LawPage>
   late final TabController _tabs;
   final _mainScroll = ItemScrollController();
   final _searchController = TextEditingController();
-  InTextSearch? _search;
+
+  InTextSearchController get _search =>
+      ref.read(inTextSearchProvider(widget.lawId).notifier);
 
   /// 別の状態として持たず現在の一致から導く。持つと、検索を閉じたときや
   /// 本則側へ戻ったときに消し忘れる。
-  SupplFocus? get _supplFocus => switch (_search?.current) {
+  static SupplFocus? _supplFocusOf(InTextSearch? s) => switch (s?.current) {
         (part: TextPart.suppl, :final group, :final index) => (
             group: group,
             article: index
@@ -124,42 +126,34 @@ class _LawPageState extends ConsumerState<LawPage>
     });
   }
 
-  /// ブックマークの現在値をメニューを開く前に読むのは、メニューの項目名を
-  /// 「追加」「外す」で出し分けるため。
+  /// ブックマークの現在値をメニューを開く前に一回だけ読むのは、メニューの
+  /// 項目名を「追加」「外す」で出し分けるため。
   Future<void> _openArticleMenu(Law law, ArticleItem a) async {
     final num = a.articleNum;
-    BookmarkOption? bookmark;
-    if (num != null) {
-      final active = await ref.read(
-          isBookmarkedProvider((lawId: law.lawId, articleNum: num)).future);
-      bookmark = (
-        active: active,
-        toggle: () => ref
-            .read(bookmarkRepositoryProvider)
-            .toggle(law.lawId, articleNum: num),
-      );
-    }
+    final repo = ref.read(bookmarkRepositoryProvider);
+    final bookmarked = num == null
+        ? null
+        : await repo.isBookmarked(law.lawId, articleNum: num);
     if (!mounted) return;
-    await showArticleMenu(context, law: law, article: a, bookmark: bookmark);
+    final action = await showArticleMenu(context, bookmarked: bookmarked);
+    if (action == null || !mounted) return;
+    await performArticleAction(
+      context,
+      action,
+      law: law,
+      article: a,
+      toggleBookmark: () => repo.toggle(law.lawId, articleNum: num),
+    );
   }
 
   void _toggleSearch() {
-    setState(() {
-      if (_search == null) {
-        _search = const InTextSearch();
-      } else {
-        _search = null;
-        _searchController.clear();
-      }
-    });
+    _search.toggle();
+    if (!_search.isOpen) _searchController.clear();
   }
 
-  void _runSearch(LawText text, String q,
-      {required bool includeSuppl, bool scroll = true, int startAt = 0}) {
-    final next =
-        InTextSearch.run(text, q, includeSuppl: includeSuppl, startAt: startAt);
-    setState(() => _search = next);
-    if (scroll && next.current != null) _reveal(next.current!);
+  void _runSearch(LawText text, String q, {required bool includeSuppl}) {
+    final next = _search.run(text, q, includeSuppl: includeSuppl);
+    if (next.current case final hit?) _reveal(hit);
   }
 
   /// ここでスクロールしないのは、条番号ジャンプと合わせて 2 回動くと目が迷うため。
@@ -170,17 +164,12 @@ class _LawPageState extends ConsumerState<LawPage>
       if (!mounted) return;
       _searchController.text = q;
       final at = text.main.indexWhere((a) => a.articleNum == widget.articleNum);
-      _runSearch(text, q,
-          includeSuppl: false, scroll: false, startAt: at < 0 ? 0 : at);
+      _search.run(text, q, includeSuppl: false, startAt: at < 0 ? 0 : at);
     });
   }
 
   void _stepMatch(int delta) {
-    final s = _search;
-    if (s == null || s.hits.isEmpty) return;
-    final next = s.step(delta);
-    setState(() => _search = next);
-    _reveal(next.current!);
+    if (_search.step(delta)?.current case final hit?) _reveal(hit);
   }
 
   @override
@@ -196,7 +185,8 @@ class _LawPageState extends ConsumerState<LawPage>
     final textAsync = ref.watch(lawBodyProvider(widget.lawId));
     final text = textAsync.value;
     final main = text?.main ?? const <ArticleItem>[];
-    final search = _search;
+    final search = ref.watch(inTextSearchProvider(widget.lawId));
+    final highlight = search?.terms ?? const <String>[];
 
     return Scaffold(
       appBar: AppBar(
@@ -224,16 +214,14 @@ class _LawPageState extends ConsumerState<LawPage>
                 controller: _searchController,
                 counter: search.counter,
                 includeSuppl: search.includeSuppl,
-                onSubmitted: (q) {
-                  if (text != null) {
-                    _runSearch(text, q, includeSuppl: search.includeSuppl);
-                  }
-                },
-                onIncludeSuppl: (v) {
-                  if (text != null) {
-                    _runSearch(text, _searchController.text, includeSuppl: v);
-                  }
-                },
+                onSubmitted: text == null
+                    ? null
+                    : (q) =>
+                        _runSearch(text, q, includeSuppl: search.includeSuppl),
+                onIncludeSuppl: text == null
+                    ? null
+                    : (v) => _runSearch(text, _searchController.text,
+                        includeSuppl: v),
                 onStep: _stepMatch,
               ),
             TabBar(controller: _tabs, tabs: const [
@@ -251,7 +239,7 @@ class _LawPageState extends ConsumerState<LawPage>
               MainTab(
                 law: law,
                 text: textAsync,
-                highlight: search?.terms ?? const [],
+                highlight: highlight,
                 scrollController: _mainScroll,
                 onLongPress: (a) => _openArticleMenu(law, a),
                 onRetry: () =>
@@ -259,10 +247,9 @@ class _LawPageState extends ConsumerState<LawPage>
               ),
               SupplTab(
                 law: law,
-                groups: text?.supplGroups ?? const [],
-                loading: textAsync.isLoading,
-                highlight: search?.terms ?? const [],
-                focus: _supplFocus,
+                text: textAsync,
+                highlight: highlight,
+                focus: _supplFocusOf(search),
                 onLoadAmendSuppl: () => ref
                     .read(lawBodyProvider(widget.lawId).notifier)
                     .loadAmendSuppl(),
@@ -285,8 +272,8 @@ class _SearchBar extends StatelessWidget {
   final TextEditingController controller;
   final String? counter;
   final bool includeSuppl;
-  final ValueChanged<String> onSubmitted;
-  final ValueChanged<bool> onIncludeSuppl;
+  final ValueChanged<String>? onSubmitted;
+  final ValueChanged<bool>? onIncludeSuppl;
   final ValueChanged<int> onStep;
 
   @override

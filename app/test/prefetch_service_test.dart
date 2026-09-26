@@ -3,8 +3,8 @@ import 'package:sqlite3/common.dart';
 import 'package:zeibun/data/db/database.dart';
 import 'package:zeibun/data/egov/egov_api.dart';
 import 'package:zeibun/data/repositories/law_repository.dart';
-import 'package:zeibun/data/repositories/prefetch_service.dart';
-import 'package:zeibun/data/repositories/sync_service.dart';
+import 'package:zeibun/data/services/prefetch_service.dart';
+import 'package:zeibun/data/services/sync_service.dart';
 
 import 'support/fake_egov_api.dart';
 

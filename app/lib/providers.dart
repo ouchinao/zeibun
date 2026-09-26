@@ -1,4 +1,3 @@
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/foundation.dart';
@@ -11,9 +10,9 @@ import 'data/db/database_location.dart';
 import 'data/egov/egov_api.dart';
 import 'data/repositories/bookmark_repository.dart';
 import 'data/repositories/law_repository.dart';
-import 'data/repositories/prefetch_service.dart';
+import 'data/services/prefetch_service.dart';
 import 'data/repositories/search_repository.dart';
-import 'data/repositories/sync_service.dart';
+import 'data/services/sync_service.dart';
 import 'features/settings/settings_controller.dart';
 
 /// 端末内 SQLite。Web では OPFS（drift の wasm 構成）。
@@ -85,51 +84,11 @@ final prefetchStateProvider =
         () => ListenableStateNotifier(
             (ref) => ref.watch(prefetchServiceProvider).state));
 
-/// 一覧が変わるたびに数え直す（保存が進めば減る）。
-final prefetchTargetCountProvider =
-    FutureProvider.autoDispose<int>((ref) async {
-  ref.watch(lawsStreamProvider);
-  return (await ref.watch(prefetchServiceProvider).targets()).length;
-});
-
-enum NetworkKind {
-  unmetered,
-  metered,
-
-  /// プラグインが応答しない・対応していない環境。判断は画面側に委ねる
-  unknown,
-}
-
-/// `mobile` の有無だけで判定しないのは、Wi-Fi とモバイルの両方に繋がった端末で
-/// 警告を出さないため。取得の失敗を例外のまま画面に渡さないのは、回線が分からない
-/// だけで保存を始められなくならないようにするため。
-final networkKindProvider =
-    FutureProvider.autoDispose<NetworkKind>((ref) async {
-  final List<ConnectivityResult> results;
-  try {
-    results = await Connectivity().checkConnectivity();
-  } catch (e) {
-    debugPrint('connectivity unavailable: $e');
-    return NetworkKind.unknown;
-  }
-  if (results.contains(ConnectivityResult.wifi) ||
-      results.contains(ConnectivityResult.ethernet)) {
-    return NetworkKind.unmetered;
-  }
-  if (results.contains(ConnectivityResult.mobile)) return NetworkKind.metered;
-  return NetworkKind.unknown;
-});
-
+/// 機能だけが使う Provider（最近開いた法令、全法令保存の対象数など）をここに
+/// 置かないのは、全機能の変更でこのファイルが膨らみ、どの画面が何に依存するかが
+/// 見えなくなるため。
 final lawsStreamProvider =
     StreamProvider<List<Law>>((ref) => ref.watch(databaseProvider).watchLaws());
-
-/// 一覧から導く。別クエリにしないのは、一覧の変更通知と二重に購読しないため。
-final recentLawsProvider = Provider<AsyncValue<List<Law>>>((ref) => ref
-    .watch(lawsStreamProvider)
-    .whenData((rows) => (rows.where((l) => l.lastOpenedAt != null).toList()
-          ..sort((a, b) => b.lastOpenedAt!.compareTo(a.lastOpenedAt!)))
-        .take(10)
-        .toList()));
 
 /// 略称索引は一覧が変わったときだけ組み直す（同期で法令が増えた後に
 /// 古い索引で検索しないため）。

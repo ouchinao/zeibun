@@ -44,8 +44,10 @@ class MainTab extends StatelessWidget {
           const _Skeleton()
         else
           _Unavailable(
+            // 分類できる失敗は `LawText.failure` でヘッダに出る。ここに来るのは
+            // Repository が分類できず投げ直した例外だけなので、文言は固定にする
             text.hasError
-                ? '本文の読み込みでエラーが発生しました: ${text.error}'
+                ? '本文の読み込みで想定外のエラーが発生しました'
                 : '本文を取得できませんでした。オンラインで再試行してください。',
             onRetry: onRetry,
           ),
@@ -114,9 +116,10 @@ class _HeaderCard extends StatelessWidget {
     if (t == null) return null;
     final why = switch (t.failure) {
       null => '',
-      BodyFailure.offline => 'オフラインのため',
-      BodyFailure.server => 'e-Gov から取得できず',
-      BodyFailure.invalidData => '取得した本文を検証できず',
+      FetchFailure.offline => 'オフラインのため',
+      FetchFailure.server => 'e-Gov から取得できず',
+      FetchFailure.invalidData => '取得した本文を検証できず',
+      FetchFailure.storageFull => '端末の空き容量が足りず保存できず',
     };
     return switch (t.status) {
       BodyStatus.stale =>
@@ -205,7 +208,8 @@ class _ArticleCard extends StatelessWidget {
             Text(crumb,
                 style: theme.textTheme.labelSmall
                     ?.copyWith(color: theme.colorScheme.outline)),
-          if (article.section == 'appdx' && article.articleTitle != null)
+          if (article.section == ArticleSection.appdx &&
+              article.articleTitle != null)
             Text(article.articleTitle!, style: theme.textTheme.titleMedium),
           LawNodeRenderer(article.body, highlight: highlight),
         ]),

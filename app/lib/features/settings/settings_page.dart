@@ -1,23 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../app_notices.dart';
 import '../../data/db/database.dart';
-import '../../data/repositories/prefetch_service.dart';
+import '../../data/services/prefetch_service.dart';
 import '../../providers.dart';
+import '../../util/external_link.dart';
 import '../../util/format.dart';
 import 'settings_controller.dart';
 
 final _syncRunsProvider = FutureProvider.autoDispose<List<SyncRun>>(
-    (ref) => ref.watch(databaseProvider).recentSyncRuns());
+    (ref) => ref.watch(syncServiceProvider).recentRuns());
 
 /// 設定（設計書 §8）: 今すぐ更新、先読み、キャッシュ削除、同期ログ、出典・免責・ライセンス。
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
   static final Uri _egovUri = Uri.https('laws.e-gov.go.jp', '/');
+
+  static String _statusLabel(SyncRun r) => switch (r.statusKind) {
+        SyncRunStatus.running => '実行中',
+        SyncRunStatus.success => '成功',
+        SyncRunStatus.error => '失敗',
+      };
 
   Future<void> _refreshNow(WidgetRef ref) async {
     await ref.read(syncServiceProvider).refreshNow();
@@ -102,7 +108,7 @@ class SettingsPage extends ConsumerWidget {
                           ListTile(
                             dense: true,
                             title: Text(
-                                '${formatIso(r.startedAt)}  ${r.status}  確認 ${r.lawsChecked} / 更新 ${r.lawsUpdated}'),
+                                '${formatIso(r.startedAt)}  ${_statusLabel(r)}  確認 ${r.lawsChecked} / 更新 ${r.lawsUpdated}'),
                             subtitle: r.error == null ? null : Text(r.error!),
                           ),
                       ]),
@@ -118,8 +124,7 @@ class SettingsPage extends ConsumerWidget {
           ListTile(
             leading: const Icon(Icons.open_in_new),
             title: const Text('e-Gov法令検索を開く'),
-            onTap: () =>
-                launchUrl(_egovUri, mode: LaunchMode.externalApplication),
+            onTap: () => openExternal(context, _egovUri),
           ),
           ListTile(
             leading: const Icon(Icons.description_outlined),

@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zeibun/data/db/database.dart';
 import 'package:zeibun/data/repositories/law_repository.dart';
 import 'package:zeibun/data/repositories/search_repository.dart';
-import 'package:zeibun/data/repositories/sync_service.dart';
+import 'package:zeibun/data/services/sync_service.dart';
 
 import 'support/fake_egov_api.dart';
 
@@ -73,9 +73,10 @@ void main() {
       expect(r.hits, isNotEmpty);
       expect(r.hits.first.lawTitle, '地方法人税法');
       expect(r.hits.first.snippet, contains('課税標準'));
-      expect(r.hits.every((h) => h.section != 'suppl'), isTrue);
+      expect(r.hits.every((h) => !h.isSuppl), isTrue);
       expect(r.laws.single.lawId, chihou);
       expect(r.laws.single.count, r.hits.length);
+      expect(r.totalHits, r.hits.length);
     });
 
     test('a term shorter than 3 characters still finds articles (LIKE)',
@@ -95,8 +96,8 @@ void main() {
     test('supplementary provisions are searched only when asked', () async {
       final main = await search.searchFullText('この法律');
       final all = await search.searchFullText('この法律', includeSuppl: true);
-      expect(main.hits.any((h) => h.section == 'suppl'), isFalse);
-      expect(all.hits.any((h) => h.section == 'suppl'), isTrue);
+      expect(main.hits.any((h) => h.isSuppl), isFalse);
+      expect(all.hits.any((h) => h.isSuppl), isTrue);
     });
 
     test('filtering by law keeps the per-law counts of the whole result',

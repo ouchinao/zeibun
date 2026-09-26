@@ -24,6 +24,9 @@ class FullTextResult {
   final FtsQuery query;
   final List<FullTextHit> hits;
   final List<LawHitCount> laws;
+
+  /// 一致した条の総数。[hits] は表示用に件数を絞るので、法令別件数から足す。
+  int get totalHits => laws.fold(0, (n, l) => n + l.count);
 }
 
 class SearchRepository {

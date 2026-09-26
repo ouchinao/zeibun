@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zeibun/data/db/database.dart';
 import 'package:zeibun/data/egov/egov_api.dart';
-import 'package:zeibun/data/repositories/sync_service.dart';
+import 'package:zeibun/data/services/sync_service.dart';
 import 'package:zeibun_core/zeibun_core.dart';
 
 import 'support/fake_egov_api.dart';

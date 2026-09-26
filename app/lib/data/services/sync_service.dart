@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:zeibun_core/zeibun_core.dart';
 
 import '../db/database.dart';
+import '../db/storage_errors.dart';
 import '../egov/egov_api.dart';
 
 /// 同期の状態（設計書 §4.4 の UI バナー用）。
@@ -116,6 +117,9 @@ class SyncService {
   /// カウンタは進める」といった条件の分岐が起動時の経路に増え続けるため。
   Future<SyncState> refreshNow() => _syncOnce();
 
+  /// 設定画面の同期ログ。画面が DB を直接引かないための入口。
+  Future<List<SyncRun>> recentRuns() => db.recentSyncRuns();
+
   /// 進行中の同期があればそれに相乗りする。バナー連打や設定画面との同時操作で
   /// 同じ 14 リクエストを並走させないため。
   Future<SyncState> _syncOnce() =>
@@ -154,7 +158,7 @@ class SyncService {
       await db.setMeta(_metaFailures, '0');
       await db.finishSyncRun(runId,
           finishedAt: now,
-          status: 'success',
+          status: SyncRunStatus.success,
           lawsChecked: diff.changes.length,
           lawsUpdated: diff.revised + diff.corrected + diff.added);
       return _emit(SyncSuccess(
@@ -175,6 +179,8 @@ class SyncService {
         FormatException() ||
         TypeError() =>
           SyncError('一覧の形式を解釈できませんでした', lastSync),
+        _ when isStorageFull(e) =>
+          SyncError('端末の空き容量が足りず、法令一覧を保存できませんでした', lastSync),
         _ => SyncError('同期に失敗しました: $e', lastSync),
       });
     }
@@ -185,7 +191,7 @@ class SyncService {
     await db.setMeta(_metaFailures, '$failures');
     await db.finishSyncRun(runId,
         finishedAt: _clock().toIso8601String(),
-        status: 'error',
+        status: SyncRunStatus.error,
         error: error.toString());
     debugPrint('sync failed ($failures consecutive): $error');
   }

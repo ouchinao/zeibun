@@ -5,6 +5,7 @@ import 'package:zeibun_core/zeibun_core.dart';
 
 import '../../data/db/database.dart';
 import '../../providers.dart';
+import '../home/section_widgets.dart';
 import 'bookmark_providers.dart';
 
 class BookmarkSection extends ConsumerWidget {
@@ -14,20 +15,13 @@ class BookmarkSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final bookmarks = ref.watch(bookmarksProvider);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text('ブックマーク', style: Theme.of(context).textTheme.titleMedium),
-      ),
+      const SectionTitle('ブックマーク'),
       bookmarks.when(
         data: (rows) => rows.isEmpty
-            ? Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text('条を長押し、または法令画面のしおりで追加できます。',
-                    style: Theme.of(context).textTheme.bodyMedium),
-              )
+            ? const SectionHint('条を長押し、または法令画面のしおりで追加できます。')
             : Column(children: [for (final b in rows) _BookmarkTile(b)]),
         loading: () => const LinearProgressIndicator(),
-        error: (e, _) => Text('読み込みエラー: $e'),
+        error: (e, _) => const SectionHint('ブックマークを読み込めませんでした'),
       ),
     ]);
   }

@@ -1,25 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/repositories/prefetch_service.dart';
+import '../../data/services/prefetch_service.dart';
 import '../../providers.dart';
 import '../../util/format.dart';
+import 'prefetch_providers.dart';
 
-/// 設計書 §4.4、§8。
+/// 設計書 §4.4、§8。回線の判断を widget に置かないのは、確認中の連打を
+/// 画面の bool で抑えるとテストが widget 越しにしか書けないため（[PrefetchLauncher]）。
 class PrefetchPage extends ConsumerWidget {
   const PrefetchPage({super.key});
 
-  /// Wi-Fi でも確認を出さないのは、毎回出る確認は読まれずに押されるため。
-  /// 回線が分からないときも確認を出すのは、分からないまま数百 MB を流さないため。
   Future<void> _start(BuildContext context, WidgetRef ref) async {
-    final network = await ref.read(networkKindProvider.future);
-    if (!context.mounted) return;
-    if (network != NetworkKind.unmetered) {
+    final launcher = ref.read(prefetchLauncherProvider.notifier);
+    final decision = await launcher.prepare();
+    if (decision == null || !context.mounted) return;
+    if (decision != PrefetchLaunch.start) {
       final ok = await showDialog<bool>(
         context: context,
         builder: (c) => AlertDialog(
-          title: Text(switch (network) {
-            NetworkKind.metered => 'モバイル回線で保存しますか？',
+          title: Text(switch (decision) {
+            PrefetchLaunch.confirmMetered => 'モバイル回線で保存しますか？',
             _ => '回線の種類を確認できませんでした',
           }),
           content: const Text('数十〜数百 MB の通信になります。Wi-Fi 接続時の実行をおすすめします。'),
@@ -35,13 +36,14 @@ class PrefetchPage extends ConsumerWidget {
       );
       if (ok != true) return;
     }
-    ref.read(prefetchServiceProvider).start();
+    launcher.start();
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final remaining = ref.watch(prefetchTargetCountProvider);
     final state = ref.watch(prefetchStateProvider);
+    final preparing = ref.watch(prefetchLauncherProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('全法令を端末に保存')),
       body: ListView(
@@ -57,6 +59,7 @@ class PrefetchPage extends ConsumerWidget {
           switch (state) {
             PrefetchIdle() => _StartCard(
                 remaining: remaining,
+                preparing: preparing,
                 onStart: () => _start(context, ref),
               ),
             PrefetchRunning() => _RunningCard(
@@ -66,6 +69,7 @@ class PrefetchPage extends ConsumerWidget {
             PrefetchFinished() => _FinishedCard(
                 state,
                 remaining: remaining,
+                preparing: preparing,
                 onStart: () => _start(context, ref),
               ),
           },
@@ -80,8 +84,12 @@ String _progressLine(PrefetchProgress p) =>
     '${p.failed > 0 ? '、失敗 ${p.failed} 件' : ''}';
 
 class _StartCard extends StatelessWidget {
-  const _StartCard({required this.remaining, required this.onStart});
+  const _StartCard(
+      {required this.remaining,
+      required this.preparing,
+      required this.onStart});
   final AsyncValue<int> remaining;
+  final bool preparing;
   final VoidCallback onStart;
 
   @override
@@ -95,7 +103,7 @@ class _StartCard extends StatelessWidget {
       }),
       const SizedBox(height: 12),
       FilledButton.icon(
-        onPressed: (n ?? 0) > 0 ? onStart : null,
+        onPressed: (n ?? 0) > 0 && !preparing ? onStart : null,
         icon: const Icon(Icons.download),
         label: const Text('保存を始める'),
       ),
@@ -129,9 +137,13 @@ class _RunningCard extends StatelessWidget {
 }
 
 class _FinishedCard extends StatelessWidget {
-  const _FinishedCard(this.s, {required this.remaining, required this.onStart});
+  const _FinishedCard(this.s,
+      {required this.remaining,
+      required this.preparing,
+      required this.onStart});
   final PrefetchFinished s;
   final AsyncValue<int> remaining;
+  final bool preparing;
   final VoidCallback onStart;
 
   @override
@@ -158,7 +170,7 @@ class _FinishedCard extends StatelessWidget {
           child: Text(note, style: Theme.of(context).textTheme.bodySmall),
         ),
       const SizedBox(height: 12),
-      _StartCard(remaining: remaining, onStart: onStart),
+      _StartCard(remaining: remaining, preparing: preparing, onStart: onStart),
     ]);
   }
 }

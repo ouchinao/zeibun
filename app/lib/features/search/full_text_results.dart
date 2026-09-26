@@ -9,10 +9,15 @@ import '../../util/highlight.dart';
 
 /// 検索条件。レコードにするのは、値が同じなら同じ Provider インスタンスを共有し、
 /// フィルタを戻したときに再検索しないため。
-typedef _Criteria = ({String query, bool includeSuppl, String? lawId});
+typedef FullTextCriteria = ({String query, bool includeSuppl, String? lawId});
 
-final _fullTextProvider = FutureProvider.autoDispose
-    .family<FullTextResult, _Criteria>((ref, c) => ref
+/// 本文タブを開いた直後の条件。法令タブが「本文タブに N 件」と案内するときも
+/// これを使い、同じ検索を 2 回走らせない。
+FullTextCriteria initialFullTextCriteria(String query) =>
+    (query: query, includeSuppl: false, lawId: null);
+
+final fullTextProvider = FutureProvider.autoDispose
+    .family<FullTextResult, FullTextCriteria>((ref, c) => ref
         .watch(searchRepositoryProvider)
         .searchFullText(c.query, includeSuppl: c.includeSuppl, lawId: c.lawId));
 
@@ -25,12 +30,11 @@ class FullTextResults extends ConsumerStatefulWidget {
 }
 
 class _FullTextResultsState extends ConsumerState<FullTextResults> {
-  late _Criteria _criteria =
-      (query: widget.query, includeSuppl: false, lawId: null);
+  late FullTextCriteria _criteria = initialFullTextCriteria(widget.query);
 
   @override
   Widget build(BuildContext context) {
-    final result = ref.watch(_fullTextProvider(_criteria));
+    final result = ref.watch(fullTextProvider(_criteria));
     return Column(children: [
       _Filters(
         criteria: _criteria,
@@ -58,9 +62,9 @@ class _FullTextResultsState extends ConsumerState<FullTextResults> {
 class _Filters extends StatelessWidget {
   const _Filters(
       {required this.criteria, required this.laws, required this.onChanged});
-  final _Criteria criteria;
+  final FullTextCriteria criteria;
   final List<LawHitCount> laws;
-  final ValueChanged<_Criteria> onChanged;
+  final ValueChanged<FullTextCriteria> onChanged;
 
   @override
   Widget build(BuildContext context) {

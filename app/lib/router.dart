@@ -7,7 +7,7 @@ import 'features/home/home_page.dart';
 import 'features/law_list/law_list_page.dart';
 import 'features/law_viewer/law_page.dart';
 import 'features/search/search_results_page.dart';
-import 'features/settings/prefetch_page.dart';
+import 'features/prefetch/prefetch_page.dart';
 import 'features/settings/settings_page.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/repositories/law_repository.dart';
 import '../../providers.dart';
 import 'law_text.dart';
 
@@ -20,19 +21,17 @@ class LawBodyController extends AsyncNotifier<LawText> {
   Future<LawText> build() async =>
       LawText.from(await ref.read(lawRepositoryProvider).openLaw(lawId));
 
-  Future<void> loadAmendSuppl() =>
-      _reload(includeAmendSuppl: true, force: false);
+  Future<void> loadAmendSuppl() => _reload(BodyRequest.withAmendSuppl);
 
-  Future<void> refresh() => _reload(includeAmendSuppl: null, force: true);
+  Future<void> refresh() => _reload(BodyRequest.refresh);
 
   /// 読み込み中の再要求は無視する。ボタン連打で同じ 16MB を並行して取らないため。
-  Future<void> _reload(
-      {required bool? includeAmendSuppl, required bool force}) async {
+  Future<void> _reload(BodyRequest request) async {
     if (state.isLoading) return;
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async => LawText.from(await ref
         .read(lawRepositoryProvider)
-        .openLaw(lawId, includeAmendSuppl: includeAmendSuppl, force: force)));
+        .openLaw(lawId, request: request)));
   }
 }
 

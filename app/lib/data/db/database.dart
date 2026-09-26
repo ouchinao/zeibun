@@ -174,6 +174,61 @@ extension LawFlags on Law {
   }
 }
 
+/// 条の区分。DB には `LawParser` が出す文字列のまま入るが、画面で文字列を
+/// 比べると typo が型で防げないので、行を読んだところで enum に変える。
+enum ArticleSection {
+  main('main'),
+  suppl('suppl'),
+  appdx('appdx');
+
+  const ArticleSection(this.dbValue);
+  final String dbValue;
+
+  static ArticleSection fromDb(String value) => values.firstWhere(
+        (s) => s.dbValue == value,
+        orElse: () => throw FormatException('unknown article section: $value'),
+      );
+}
+
+extension ArticleFlags on Article {
+  ArticleSection get sectionKind => ArticleSection.fromDb(section);
+}
+
+enum SyncRunStatus {
+  running('running'),
+  success('success'),
+  error('error');
+
+  const SyncRunStatus(this.dbValue);
+  final String dbValue;
+
+  static SyncRunStatus fromDb(String value) => values.firstWhere(
+        (s) => s.dbValue == value,
+        orElse: () => throw FormatException('unknown sync run status: $value'),
+      );
+}
+
+extension SyncRunFlags on SyncRun {
+  SyncRunStatus get statusKind => SyncRunStatus.fromDb(status);
+}
+
+enum RevisionTiming { scheduled, current, past }
+
+extension LawRevisionFlags on LawRevision {
+  /// API の `current_revision_status` が `UnEnforced`。施行日が今日以前でも
+  /// この値なら未施行として扱う（施行日が暫定のことがある）。
+  bool get isUnenforced => status == 'UnEnforced';
+
+  RevisionTiming timingAt(String today, {required String? currentRevisionId}) {
+    if (enforcedAt.compareTo(today) > 0 || isUnenforced) {
+      return RevisionTiming.scheduled;
+    }
+    return revisionId == currentRevisionId
+        ? RevisionTiming.current
+        : RevisionTiming.past;
+  }
+}
+
 typedef CatalogEntry = ({LawSummary summary, String scopeReason});
 
 class FullTextHit {
@@ -190,13 +245,13 @@ class FullTextHit {
 
   final String lawId;
   final String lawTitle;
-  final String section;
+  final ArticleSection section;
   final String? articleNum;
   final String? articleTitle;
   final String? caption;
   final String? breadcrumb;
 
-  bool get isSuppl => section == 'suppl';
+  bool get isSuppl => section == ArticleSection.suppl;
 
   /// 一致箇所の前後。強調は画面側が語を探して付ける（索引経由と LIKE 経由で
   /// 抜粋の作り方が違っても、画面の処理を 1 つにするため）。
@@ -236,7 +291,9 @@ _FullTextFilter? _fullTextFilter(FtsQuery q,
     where.add('a.plain_text LIKE ?');
     args.add(Variable(p));
   }
-  if (!includeSuppl) where.add("a.section != 'suppl'");
+  if (!includeSuppl) {
+    where.add("a.section != '${ArticleSection.suppl.dbValue}'");
+  }
   if (lawId != null) {
     where.add('a.law_id = ?');
     args.add(Variable(lawId));
@@ -526,6 +583,9 @@ class AppDatabase extends _$AppDatabase {
   Stream<bool> watchIsBookmarked(String lawId, String? articleNum) =>
       _bookmarkOf(lawId, articleNum).watchSingleOrNull().map((b) => b != null);
 
+  Future<bool> isBookmarked(String lawId, String? articleNum) async =>
+      await _bookmarkOf(lawId, articleNum).getSingleOrNull() != null;
+
   /// 追加と削除を分けずトグルにし、トランザクションで囲むのは、連打で同じ条に
   /// 2 行入るのを防ぐため。戻り値は付いた後の状態。
   Future<bool> toggleBookmark(String lawId,
@@ -583,7 +643,7 @@ class AppDatabase extends _$AppDatabase {
         FullTextHit(
           lawId: r.read<String>('law_id'),
           lawTitle: r.read<String>('title'),
-          section: r.read<String>('section'),
+          section: ArticleSection.fromDb(r.read<String>('section')),
           articleNum: r.readNullable<String>('article_num'),
           articleTitle: r.readNullable<String>('article_title'),
           caption: r.readNullable<String>('caption'),
@@ -652,13 +712,13 @@ class AppDatabase extends _$AppDatabase {
   Future<int> startSyncRun(String startedAt) =>
       into(syncRuns).insert(SyncRunsCompanion.insert(
         startedAt: startedAt,
-        status: 'running',
+        status: SyncRunStatus.running.dbValue,
       ));
 
   Future<void> finishSyncRun(
     int id, {
     required String finishedAt,
-    required String status,
+    required SyncRunStatus status,
     int lawsChecked = 0,
     int lawsUpdated = 0,
     int bytesDownloaded = 0,
@@ -666,7 +726,7 @@ class AppDatabase extends _$AppDatabase {
   }) =>
       (update(syncRuns)..where((t) => t.id.equals(id))).write(SyncRunsCompanion(
         finishedAt: Value(finishedAt),
-        status: Value(status),
+        status: Value(status.dbValue),
         lawsChecked: Value(lawsChecked),
         lawsUpdated: Value(lawsUpdated),
         bytesDownloaded: Value(bytesDownloaded),

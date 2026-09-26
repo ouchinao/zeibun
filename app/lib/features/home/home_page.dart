@@ -10,6 +10,8 @@ import '../bookmarks/bookmark_section.dart';
 import '../law_list/law_tile.dart';
 import '../settings/settings_controller.dart';
 import '../sync/sync_banner.dart';
+import 'home_providers.dart';
+import 'section_widgets.dart';
 
 /// 検索（ホーム）。検索窓、同期バナー、最近開いた法令、主要法令へのショートカット。
 class HomePage extends ConsumerStatefulWidget {
@@ -88,22 +90,22 @@ class _HomePageState extends ConsumerState<HomePage> {
             ),
           ),
           const SizedBox(height: 24),
-          const _SectionTitle('最近開いた法令'),
+          const SectionTitle('最近開いた法令'),
           recent.when(
             data: (rows) => rows.isEmpty
-                ? const _Hint('まだ法令を開いていません。')
+                ? const SectionHint('まだ法令を開いていません。')
                 : Column(children: [for (final l in rows) LawTile(law: l)]),
             loading: () => const LinearProgressIndicator(),
-            error: (e, _) => _Hint('読み込みエラー: $e'),
+            error: (e, _) => const SectionHint('最近開いた法令を読み込めませんでした'),
           ),
           const SizedBox(height: 24),
           const BookmarkSection(),
           const SizedBox(height: 24),
-          const _SectionTitle('主要な税法'),
+          const SectionTitle('主要な税法'),
           laws.when(
             data: (rows) => _MajorLawChips(rows),
             loading: () => const LinearProgressIndicator(),
-            error: (e, _) => _Hint('読み込みエラー: $e'),
+            error: (e, _) => const SectionHint('法令一覧を読み込めませんでした'),
           ),
           const SizedBox(height: 32),
           Text(footerNotice, style: Theme.of(context).textTheme.bodySmall),
@@ -125,7 +127,7 @@ class _MajorLawChips extends StatelessWidget {
         if (byId[id] case final l?) l,
     ];
     if (major.isEmpty) {
-      return const _Hint('法令一覧を取得すると、ここに主要な税法が並びます。');
+      return const SectionHint('法令一覧を取得すると、ここに主要な税法が並びます。');
     }
     return Wrap(
       spacing: 8,
@@ -144,26 +146,4 @@ class _MajorLawChips extends StatelessWidget {
       ],
     );
   }
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(text, style: Theme.of(context).textTheme.titleMedium),
-      );
-}
-
-class _Hint extends StatelessWidget {
-  const _Hint(this.text);
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Text(text, style: Theme.of(context).textTheme.bodyMedium),
-      );
 }
