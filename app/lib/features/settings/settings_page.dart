@@ -8,6 +8,7 @@ import '../../data/services/prefetch_service.dart';
 import '../../providers.dart';
 import '../../util/external_link.dart';
 import '../../util/format.dart';
+import 'app_version.dart';
 import 'settings_controller.dart';
 
 final _syncRunsProvider = FutureProvider.autoDispose<List<SyncRun>>(
@@ -135,6 +136,15 @@ class SettingsPage extends ConsumerWidget {
               applicationLegalese: '© 2026 ouchinao\n'
                   '法令データ: e-Gov法令検索（公共データ利用規約 PDL1.0）',
             ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.tag),
+            title: const Text('バージョン'),
+            subtitle: Text(switch (ref.watch(appVersionProvider)) {
+              AsyncData(:final value) => formatVersion(value),
+              AsyncError() => '取得できませんでした',
+              _ => '…',
+            }),
           ),
         ],
       ),
