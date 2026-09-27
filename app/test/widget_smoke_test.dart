@@ -161,4 +161,23 @@ void main() {
     expect(find.textContaining('地方法人税'), findsWidgets);
     expect(find.textContaining('<Rt>'), findsNothing);
   });
+
+  testWidgets('table cells are read with their row, column and column heading',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    final table = LawNode.parseXmlString('<TableStruct><Table>'
+        '<TableRow><TableColumn><Sentence>区分</Sentence></TableColumn>'
+        '<TableColumn><Sentence>税率</Sentence></TableColumn></TableRow>'
+        '<TableRow><TableColumn><Sentence>普通法人</Sentence></TableColumn>'
+        '<TableColumn><Sentence>百分の十五</Sentence></TableColumn></TableRow>'
+        '</Table></TableStruct>');
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: LawNodeRenderer(table, highlight: const [])),
+    ));
+    expect(tester.getSemantics(find.text('百分の十五')),
+        isSemantics(label: '2行目、2列目、税率\n百分の十五'));
+    expect(tester.getSemantics(find.text('税率')),
+        isSemantics(label: '1行目、2列目\n税率'));
+    handle.dispose();
+  });
 }

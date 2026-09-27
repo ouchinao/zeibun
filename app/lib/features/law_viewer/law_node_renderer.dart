@@ -255,6 +255,13 @@ class _Renderer {
     if (rows.isEmpty) return _children(n);
     // Table は全行の列数が揃っていないと例外になるので、足りない分は空セルで埋める
     final maxCols = rows.map((r) => r.length).reduce(max);
+    final headers = [for (final c in rows.first) c.text.trim()];
+    // 1 行目を見出しと決めつけて「税率」だけを読ませないのは、法令の表には
+    // 見出し行の目印が無く、見出しの無い表で行・列の位置まで失わないため
+    String position(int r, int c) => [
+          '${r + 1}行目、${c + 1}列目',
+          if (r > 0 && c < headers.length && headers[c].isNotEmpty) headers[c],
+        ].join('、');
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: ConstrainedBox(
@@ -265,12 +272,18 @@ class _Renderer {
           defaultColumnWidth: const IntrinsicColumnWidth(),
           defaultVerticalAlignment: TableCellVerticalAlignment.top,
           children: [
-            for (final cols in rows)
+            for (final (r, cols) in rows.indexed)
               TableRow(children: [
-                for (final c in cols)
-                  Padding(
-                    padding: const EdgeInsets.all(6),
-                    child: _children(c),
+                for (final (c, cell) in cols.indexed)
+                  // セルの文字だけを読ませないのは、耳では列見出しとの対応が分からないため
+                  MergeSemantics(
+                    child: Semantics(
+                      label: position(r, c),
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: _children(cell),
+                      ),
+                    ),
                   ),
                 for (var i = cols.length; i < maxCols; i++)
                   const SizedBox.shrink(),
