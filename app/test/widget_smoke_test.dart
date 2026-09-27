@@ -162,8 +162,7 @@ void main() {
     expect(find.textContaining('<Rt>'), findsNothing);
   });
 
-  testWidgets(
-      'table cells are read with their row, column and column heading',
+  testWidgets('table cells are read with their row, column and column heading',
       (tester) async {
     final handle = tester.ensureSemantics();
     final table = LawNode.parseXmlString('<TableStruct><Table>'
