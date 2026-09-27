@@ -602,6 +602,18 @@ class AppDatabase extends _$AppDatabase {
         return true;
       });
 
+  /// 外したブックマークを元の登録日時で戻す。トグルを使わないのは、その間に
+  /// 同じ条を付け直していた場合に、戻すつもりで外してしまうため。
+  Future<void> restoreBookmark(String lawId,
+          {String? articleNum, required String createdAt}) =>
+      transaction(() async {
+        if (await _bookmarkOf(lawId, articleNum).getSingleOrNull() != null) {
+          return;
+        }
+        await into(bookmarks).insert(BookmarksCompanion.insert(
+            lawId: lawId, articleNum: Value(articleNum), createdAt: createdAt));
+      });
+
   Future<void> removeBookmark(int id) =>
       (delete(bookmarks)..where((t) => t.id.equals(id))).go();
 

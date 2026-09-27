@@ -73,4 +73,14 @@ void main() {
     expect(s.counter, isNull);
     expect(InTextSearch.run(text, 'ない語', includeSuppl: true).counter, '0 件');
   });
+
+  test('the announcement tells the position, total and whether it is in 附則',
+      () {
+    final s = InTextSearch.run(text, '損金', includeSuppl: true);
+    expect(s.announcement, '1件目、全3件');
+    expect(s.step(1).announcement, '2件目、全3件、附則');
+    expect(
+        InTextSearch.run(text, 'ない語', includeSuppl: true).announcement, '一致なし');
+    expect(const InTextSearch().announcement, isNull);
+  });
 }

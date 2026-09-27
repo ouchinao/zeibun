@@ -65,14 +65,18 @@ class _HomePageState extends ConsumerState<HomePage> {
     final recent = ref.watch(recentLawsProvider);
     final laws = ref.watch(lawsStreamProvider);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('zeibun 税法検索'),
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(30),
-          child: SyncBanner(),
-        ),
-      ),
-      body: ListView(
+      appBar: AppBar(title: const Text('zeibun 税法検索')),
+      // 同期バナーを AppBar.bottom に置かないのは、bottom が固定の高さで、
+      // 文字サイズを大きくした端末では文言がはみ出して下の検索窓に重なるため
+      body: Column(children: [
+        const SyncBanner(),
+        Expanded(child: _body(recent, laws)),
+      ]),
+    );
+  }
+
+  Widget _body(AsyncValue<List<Law>> recent, AsyncValue<List<Law>> laws) =>
+      ListView(
         padding: const EdgeInsets.all(16),
         children: [
           TextField(
@@ -85,6 +89,7 @@ class _HomePageState extends ConsumerState<HomePage> {
               border: const OutlineInputBorder(),
               suffixIcon: IconButton(
                 icon: const Icon(Icons.arrow_forward),
+                tooltip: '検索',
                 onPressed: () => _submit(_controller.text),
               ),
             ),
@@ -110,9 +115,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           const SizedBox(height: 32),
           Text(footerNotice, style: Theme.of(context).textTheme.bodySmall),
         ],
-      ),
-    );
-  }
+      );
 }
 
 class _MajorLawChips extends StatelessWidget {
@@ -138,8 +141,10 @@ class _MajorLawChips extends StatelessWidget {
             label: Text(l.title),
             avatar: switch (l.bodyCache) {
               BodyCache.none => null,
-              BodyCache.current => const Icon(Icons.offline_pin, size: 18),
-              BodyCache.outdated => const Icon(Icons.update, size: 18),
+              BodyCache.current =>
+                const Icon(Icons.offline_pin, size: 18, semanticLabel: '保存済み'),
+              BodyCache.outdated =>
+                const Icon(Icons.update, size: 18, semanticLabel: '改正あり'),
             },
             onPressed: () => context.push('/law/${l.lawId}'),
           ),

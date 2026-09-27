@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -18,6 +19,7 @@ class MainTab extends StatelessWidget {
     required this.highlight,
     required this.scrollController,
     required this.onLongPress,
+    required this.onToggleBookmark,
     required this.onRetry,
   });
 
@@ -30,6 +32,7 @@ class MainTab extends StatelessWidget {
   final List<String> highlight;
   final ItemScrollController scrollController;
   final void Function(ArticleItem) onLongPress;
+  final void Function(ArticleItem) onToggleBookmark;
   final VoidCallback onRetry;
 
   @override
@@ -63,6 +66,8 @@ class MainTab extends StatelessWidget {
           article: a,
           highlight: highlight,
           onLongPress: () => onLongPress(a),
+          onToggleBookmark:
+              a.articleNum == null ? null : () => onToggleBookmark(a),
         );
       },
     );
@@ -84,7 +89,10 @@ class _HeaderCard extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(law.lawNum, style: small),
-        Text(law.title, style: Theme.of(context).textTheme.titleLarge),
+        Semantics(
+            header: true,
+            child:
+                Text(law.title, style: Theme.of(context).textTheme.titleLarge)),
         const SizedBox(height: 4),
         Wrap(spacing: 12, runSpacing: 2, children: [
           Text('${lawTypeLabel(law.lawType)} · ${law.category ?? ''}',
@@ -190,29 +198,50 @@ class _ArticleCard extends StatelessWidget {
   const _ArticleCard(
       {required this.article,
       required this.highlight,
-      required this.onLongPress});
+      required this.onLongPress,
+      required this.onToggleBookmark});
   final ArticleItem article;
   final List<String> highlight;
   final VoidCallback onLongPress;
 
+  /// 仮想条で null にするのは、条番号が無く再訪先を指せないため（長押しメニューと同じ）。
+  final VoidCallback? onToggleBookmark;
+
+  static const _bookmarkAction = CustomSemanticsAction(label: 'ブックマークに追加・外す');
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return InkWell(
-      onLongPress: onLongPress,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-        child:
-            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          if (article.breadcrumb case final crumb?)
-            Text(crumb,
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(color: theme.colorScheme.outline)),
-          if (article.section == ArticleSection.appdx &&
-              article.articleTitle != null)
-            Text(article.articleTitle!, style: theme.textTheme.titleMedium),
-          LawNodeRenderer(article.body, highlight: highlight),
-        ]),
+    // ボタンを足さずに読み上げの操作一覧に出すのは、見た目を変えないため。
+    // 長押しだけではスクリーンリーダーの利用者にメニューの存在が伝わらない
+    return Semantics(
+      // 条の名前を付けるのは、読み上げでブックマークの操作がどの条のものか
+      // 分かるようにするため（付けないと中の章見出しなどの名前を借りてしまう）
+      label: [article.articleTitle, article.caption].nonNulls.join(),
+      // onLongPressHint にしないのは、iOS では無視されるため
+      hint: '長押しでメニューを開きます',
+      customSemanticsActions: {
+        if (onToggleBookmark case final toggle?) _bookmarkAction: toggle,
+      },
+      child: InkWell(
+        onLongPress: onLongPress,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            if (article.breadcrumb case final crumb?)
+              Semantics(
+                  header: true,
+                  child: Text(crumb,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                          // outline は小さい文字でコントラスト 4.5:1 に届かない
+                          color: theme.colorScheme.onSurfaceVariant))),
+            if (article.section == ArticleSection.appdx &&
+                article.articleTitle != null)
+              Text(article.articleTitle!, style: theme.textTheme.titleMedium),
+            LawNodeRenderer(article.body, highlight: highlight),
+          ]),
+        ),
       ),
     );
   }

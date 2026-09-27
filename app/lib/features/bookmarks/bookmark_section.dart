@@ -44,10 +44,22 @@ class _BookmarkTile extends ConsumerWidget {
       trailing: IconButton(
         icon: const Icon(Icons.close),
         tooltip: '外す',
-        onPressed: () => ref.read(bookmarkRepositoryProvider).remove(b.id),
+        onPressed: () => _remove(context, ref),
       ),
       onTap: () => context.push(
           num == null ? '/law/${b.lawId}' : '/law/${b.lawId}/article/$num'),
     );
+  }
+
+  /// 確認のダイアログを挟まず、外した後に取り消しを出すのは、外すたびに
+  /// 確認されると手間で、誤操作のときだけ戻せれば足りるため。
+  Future<void> _remove(BuildContext context, WidgetRef ref) async {
+    final repo = ref.read(bookmarkRepositoryProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    await repo.remove(b.id);
+    messenger.showSnackBar(SnackBar(
+      content: const Text('ブックマークを外しました'),
+      action: SnackBarAction(label: '元に戻す', onPressed: () => repo.restore(b)),
+    ));
   }
 }
