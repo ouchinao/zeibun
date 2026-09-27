@@ -48,20 +48,26 @@ class SyncBanner extends ConsumerWidget {
     };
     return Material(
       color: color,
-      child: InkWell(
-        onTap: state is SyncChecking
-            ? null
-            : () => ref.read(syncServiceProvider).refreshNow(),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Row(children: [
-            Icon(icon, size: 16),
-            const SizedBox(width: 8),
-            Expanded(
-                child: Text(text,
-                    style: Theme.of(context).textTheme.bodySmall,
-                    overflow: TextOverflow.ellipsis)),
-          ]),
+      // ボタンの形にせず読み上げのヒントで伝えるのは、見た目を変えないため。
+      // 文言だけでは押すと更新できることが読み上げで分からない。onTapHint に
+      // しないのは、iOS では無視されるため
+      child: Semantics(
+        hint: '押すと法令一覧を今すぐ更新します',
+        child: InkWell(
+          onTap: state is SyncChecking
+              ? null
+              : () => ref.read(syncServiceProvider).refreshNow(),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(children: [
+              Icon(icon, size: 16),
+              const SizedBox(width: 8),
+              Expanded(
+                  child: Text(text,
+                      style: Theme.of(context).textTheme.bodySmall,
+                      overflow: TextOverflow.ellipsis)),
+            ]),
+          ),
         ),
       ),
     );

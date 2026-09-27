@@ -28,8 +28,12 @@ class TocDrawer extends StatelessWidget {
                         if (newCrumb)
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                            child: Text(crumb,
-                                style: Theme.of(context).textTheme.labelLarge),
+                            child: Semantics(
+                                header: true,
+                                child: Text(crumb,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelLarge)),
                           ),
                         ListTile(
                           dense: true,

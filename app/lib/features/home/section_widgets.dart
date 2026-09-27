@@ -8,7 +8,10 @@ class SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
-        child: Text(text, style: Theme.of(context).textTheme.titleMedium),
+        // ただの文字にしないのは、読み上げの「見出しへ移動」で節を飛べるようにするため
+        child: Semantics(
+            header: true,
+            child: Text(text, style: Theme.of(context).textTheme.titleMedium)),
       );
 }
 

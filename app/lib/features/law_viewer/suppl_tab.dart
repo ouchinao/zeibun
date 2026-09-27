@@ -52,7 +52,11 @@ class _SupplTabState extends State<SupplTab> {
       final c = _focusKey.currentContext;
       if (c != null) {
         Scrollable.ensureVisible(c,
-            alignment: 0.1, duration: const Duration(milliseconds: 250));
+            alignment: 0.1,
+            // 常にアニメーションしないのは、「視差効果を減らす」を選んだ人には動きが負担になるため
+            duration: MediaQuery.disableAnimationsOf(c)
+                ? Duration.zero
+                : const Duration(milliseconds: 250));
       }
     });
   }

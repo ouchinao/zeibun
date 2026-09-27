@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:zeibun_core/zeibun_core.dart';
@@ -86,7 +87,8 @@ class _LawPageState extends ConsumerState<LawPage>
   void _scrollTo(int articleIndex, {bool animate = true}) {
     if (!_mainScroll.isAttached) return;
     final index = articleIndex + MainTab.headerItems;
-    if (animate) {
+    // 常にアニメーションしないのは、「視差効果を減らす」を選んだ人には動きが負担になるため
+    if (animate && !MediaQuery.disableAnimationsOf(context)) {
       _mainScroll.scrollTo(
           index: index, duration: const Duration(milliseconds: 250));
     } else {
@@ -102,12 +104,22 @@ class _LawPageState extends ConsumerState<LawPage>
         if (_tabs.index == _mainTab) {
           _scrollTo(hit.index);
         } else {
-          _tabs.animateTo(_mainTab);
+          _switchTab(_mainTab);
           WidgetsBinding.instance
               .addPostFrameCallback((_) => _scrollTo(hit.index));
         }
       case TextPart.suppl:
-        _tabs.animateTo(_supplTab);
+        _switchTab(_supplTab);
+    }
+  }
+
+  void _switchTab(int index) => _tabs.animateTo(index,
+      duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : null);
+
+  void _announce(InTextSearch s) {
+    if (s.announcement case final message?) {
+      SemanticsService.sendAnnouncement(
+          View.of(context), message, TextDirection.ltr);
     }
   }
 
@@ -130,20 +142,37 @@ class _LawPageState extends ConsumerState<LawPage>
   /// 項目名を「追加」「外す」で出し分けるため。
   Future<void> _openArticleMenu(Law law, ArticleItem a) async {
     final num = a.articleNum;
-    final repo = ref.read(bookmarkRepositoryProvider);
     final bookmarked = num == null
         ? null
-        : await repo.isBookmarked(law.lawId, articleNum: num);
+        : await ref
+            .read(bookmarkRepositoryProvider)
+            .isBookmarked(law.lawId, articleNum: num);
     if (!mounted) return;
     final action = await showArticleMenu(context, bookmarked: bookmarked);
     if (action == null || !mounted) return;
-    await performArticleAction(
+    await _runArticleAction(law, a, action);
+  }
+
+  /// 長押しメニューと別に直接の入口を持つのは、スクリーンリーダーでは長押しの
+  /// 存在が伝わりにくく、読み上げのアクション一覧から選べるようにするため。
+  Future<void> _toggleArticleBookmark(Law law, ArticleItem a) =>
+      _runArticleAction(law, a, ArticleAction.toggleBookmark);
+
+  Future<void>? _articleActionInFlight;
+
+  /// 実行中に新しく始めず相乗りするのは、読み上げの操作を続けて 2 回実行すると
+  /// 追加と解除が続けて走り、元に戻ってしまうため。
+  Future<void> _runArticleAction(Law law, ArticleItem a, ArticleAction action) {
+    final num = a.articleNum;
+    return _articleActionInFlight ??= performArticleAction(
       context,
       action,
       law: law,
       article: a,
-      toggleBookmark: () => repo.toggle(law.lawId, articleNum: num),
-    );
+      toggleBookmark: () => ref
+          .read(bookmarkRepositoryProvider)
+          .toggle(law.lawId, articleNum: num),
+    ).whenComplete(() => _articleActionInFlight = null);
   }
 
   void _toggleSearch() {
@@ -153,6 +182,7 @@ class _LawPageState extends ConsumerState<LawPage>
 
   void _runSearch(LawText text, String q, {required bool includeSuppl}) {
     final next = _search.run(text, q, includeSuppl: includeSuppl);
+    _announce(next);
     if (next.current case final hit?) _reveal(hit);
   }
 
@@ -169,7 +199,10 @@ class _LawPageState extends ConsumerState<LawPage>
   }
 
   void _stepMatch(int delta) {
-    if (_search.step(delta)?.current case final hit?) _reveal(hit);
+    final next = _search.step(delta);
+    if (next == null) return;
+    _announce(next);
+    if (next.current case final hit?) _reveal(hit);
   }
 
   @override
@@ -206,56 +239,58 @@ class _LawPageState extends ConsumerState<LawPage>
             ),
           ),
         ],
-        bottom: PreferredSize(
-          preferredSize: Size.fromHeight(search == null ? 48 : 104),
-          child: Column(children: [
-            if (search != null)
-              _SearchBar(
-                controller: _searchController,
-                counter: search.counter,
-                includeSuppl: search.includeSuppl,
-                onSubmitted: text == null
-                    ? null
-                    : (q) =>
-                        _runSearch(text, q, includeSuppl: search.includeSuppl),
-                onIncludeSuppl: text == null
-                    ? null
-                    : (v) => _runSearch(text, _searchController.text,
-                        includeSuppl: v),
-                onStep: _stepMatch,
-              ),
-            TabBar(controller: _tabs, tabs: const [
-              Tab(text: '本文'),
-              Tab(text: '附則'),
-              Tab(text: '改正履歴'),
-            ]),
-          ]),
-        ),
       ),
       endDrawer: law == null ? null : TocDrawer(main, onSelect: _scrollTo),
-      body: law == null
-          ? const Center(child: CircularProgressIndicator())
-          : TabBarView(controller: _tabs, children: [
-              MainTab(
-                law: law,
-                text: textAsync,
-                highlight: highlight,
-                scrollController: _mainScroll,
-                onLongPress: (a) => _openArticleMenu(law, a),
-                onRetry: () =>
-                    ref.read(lawBodyProvider(widget.lawId).notifier).refresh(),
-              ),
-              SupplTab(
-                law: law,
-                text: textAsync,
-                highlight: highlight,
-                focus: _supplFocusOf(search),
-                onLoadAmendSuppl: () => ref
-                    .read(lawBodyProvider(widget.lawId).notifier)
-                    .loadAmendSuppl(),
-              ),
-              RevisionsTab(law: law),
-            ]),
+      // 検索バーとタブを AppBar.bottom に置かないのは、bottom が固定の高さで、
+      // 文字サイズを大きくした端末では検索欄がはみ出して本文に重なるため
+      body: Column(children: [
+        if (search != null)
+          _SearchBar(
+            controller: _searchController,
+            counter: search.counter,
+            includeSuppl: search.includeSuppl,
+            onSubmitted: text == null
+                ? null
+                : (q) => _runSearch(text, q, includeSuppl: search.includeSuppl),
+            onIncludeSuppl: text == null
+                ? null
+                : (v) =>
+                    _runSearch(text, _searchController.text, includeSuppl: v),
+            onStep: _stepMatch,
+          ),
+        TabBar(controller: _tabs, tabs: const [
+          Tab(text: '本文'),
+          Tab(text: '附則'),
+          Tab(text: '改正履歴'),
+        ]),
+        Expanded(
+          child: law == null
+              ? const Center(child: CircularProgressIndicator())
+              : TabBarView(controller: _tabs, children: [
+                  MainTab(
+                    law: law,
+                    text: textAsync,
+                    highlight: highlight,
+                    scrollController: _mainScroll,
+                    onLongPress: (a) => _openArticleMenu(law, a),
+                    onToggleBookmark: (a) => _toggleArticleBookmark(law, a),
+                    onRetry: () => ref
+                        .read(lawBodyProvider(widget.lawId).notifier)
+                        .refresh(),
+                  ),
+                  SupplTab(
+                    law: law,
+                    text: textAsync,
+                    highlight: highlight,
+                    focus: _supplFocusOf(search),
+                    onLoadAmendSuppl: () => ref
+                        .read(lawBodyProvider(widget.lawId).notifier)
+                        .loadAmendSuppl(),
+                  ),
+                  RevisionsTab(law: law),
+                ]),
+        ),
+      ]),
     );
   }
 }
@@ -298,14 +333,15 @@ class _SearchBar extends StatelessWidget {
             label: const Text('附則'),
             tooltip: '附則も検索する',
             selected: includeSuppl,
-            visualDensity: VisualDensity.compact,
             onSelected: onIncludeSuppl,
           ),
           IconButton(
               icon: const Icon(Icons.keyboard_arrow_up),
+              tooltip: '前の一致へ',
               onPressed: () => onStep(-1)),
           IconButton(
               icon: const Icon(Icons.keyboard_arrow_down),
+              tooltip: '次の一致へ',
               onPressed: () => onStep(1)),
         ]),
       );

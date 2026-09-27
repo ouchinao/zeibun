@@ -25,4 +25,8 @@ class BookmarkRepository {
           articleNum: articleNum, at: _clock().toIso8601String());
 
   Future<void> remove(int id) => db.removeBookmark(id);
+
+  /// 一覧の並びが変わらないよう、時刻は付け直さず元の登録日時で戻す。
+  Future<void> restore(BookmarkEntry b) => db.restoreBookmark(b.lawId,
+      articleNum: b.articleNum, createdAt: b.createdAt);
 }

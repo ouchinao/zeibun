@@ -29,6 +29,14 @@ class InTextSearch {
       ? (terms.isEmpty ? null : '0 件')
       : '${cursor + 1}/${hits.length}';
 
+  /// 読み上げで知らせる文。画面の「3/10」は見れば分かるが、読み上げでは
+  /// 変化が伝わらないので、検索や前後移動のたびにこれを読ませる。
+  String? get announcement => switch (current) {
+        null => terms.isEmpty ? null : '一致なし',
+        final hit => '${cursor + 1}件目、全${hits.length}件'
+            '${hit.part == TextPart.suppl ? '、附則' : ''}',
+      };
+
   InTextSearch step(int delta) => InTextSearch(
         terms: terms,
         includeSuppl: includeSuppl,

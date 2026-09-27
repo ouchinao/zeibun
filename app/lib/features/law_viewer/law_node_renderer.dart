@@ -143,8 +143,13 @@ class _Renderer {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // 条見出しを見出しとして読ませるのは、長い法令でも読み上げの
+        // 「見出しへ移動」で条から条へ飛べるようにするため
         if (caption != null && caption.isNotEmpty)
-          Text(caption, style: base.copyWith(color: scheme.onSurfaceVariant)),
+          Semantics(
+              header: true,
+              child: Text(caption,
+                  style: base.copyWith(color: scheme.onSurfaceVariant))),
         for (var i = 0; i < rest.length; i++)
           if (i == 0 && rest[i].tag == 'Paragraph')
             _paragraph(rest[i], leadingTitle: title)
@@ -171,7 +176,9 @@ class _Renderer {
         children: [
           if (caption != null && caption.isNotEmpty)
             Text(caption, style: base.copyWith(color: scheme.onSurfaceVariant)),
-          Row(
+          // 番号と本文を別々の読み上げ単位にしないのは、「２」「…の場合には」と切れて読まれるため
+          MergeSemantics(
+              child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
@@ -194,7 +201,7 @@ class _Renderer {
                 ),
               ),
             ],
-          ),
+          )),
         ],
       ),
     );
@@ -206,7 +213,8 @@ class _Renderer {
     final body = n.elements.where((e) => e.tag != titleTag).toList();
     return Padding(
       padding: EdgeInsets.only(left: 12.0 * indent, top: 2),
-      child: Row(
+      child: MergeSemantics(
+          child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(width: 28, child: Text(title, style: base)),
@@ -217,7 +225,7 @@ class _Renderer {
             ),
           ),
         ],
-      ),
+      )),
     );
   }
 
