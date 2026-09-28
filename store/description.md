@@ -50,7 +50,7 @@ https://github.com/ouchinao/zeibun/issues
 
 ## プライバシーポリシー URL
 
-https://ouchinao.github.io/zeibun/privacy（GitHub Pages を有効にしてから確定）
+https://ouchinao.github.io/zeibun/privacy （GitHub Pages を有効にしてから確定）
 
 ## 年齢制限
 
