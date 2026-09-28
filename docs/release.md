@@ -6,8 +6,11 @@
 
 - Apple Developer Program に登録済みで、Xcode にそのアカウントを追加してある
 - App Store Connect に Bundle ID `io.github.ouchinao.zeibun` のアプリを作ってある
-- `app/ios/Runner.xcworkspace` を Xcode で開き、Runner ターゲットの Signing & Capabilities で「Automatically manage signing」を ON にし、Team を選んである（この変更は `project.pbxproj` に `DEVELOPMENT_TEAM` として入るので、そのままコミットしてよい）
-- 手元の Mac に Flutter stable と CocoaPods が入っている
+- `app/ios/Runner.xcworkspace` を Xcode で開き、Runner ターゲットの Signing & Capabilities で「Automatically manage signing」を ON にし、Team を選んである（この変更は `project.pbxproj` に `DEVELOPMENT_TEAM` として入るので、そのままコミットしてよい。設定済み）
+- 署名の初回は、テスト用の iPhone をケーブルでつないで Xcode の実行先に選び、Team に端末を登録させる。登録が無いと「Your team has no devices」で開発用プロファイルが作れず、`flutter build ipa` も通らない
+- 手元の Mac に Flutter stable が入っている。`flutter doctor` の 1 行目に「(Rosetta)」が出ないこと
+- Apple シリコンの Mac では、ターミナルを Rosetta で開かない（ターミナルの「情報を見る」で「Rosetta を使用して開く」を外す）。Rosetta のまま入れた Homebrew は `/usr/local` に入り、ビルド済みの部品が無いため CocoaPods の依存を何時間もかけてソースからビルドする。CocoaPods が要るときは `/opt/homebrew` の Homebrew で入れる
+- `pod install` は手で打たない。Podfile はリポジトリに無く、必要なら `flutter build ios --config-only --release` が作る（v1.0.0 のビルドでは Swift Package Manager で解決され、Podfile は作られなかった）
 
 ## 毎回の手順
 
