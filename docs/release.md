@@ -126,8 +126,11 @@ Transporter が使えないときは、Xcode で `ios/Runner.xcworkspace` を開
 
 1. App Store Connect → アプリ → TestFlight に、10〜30 分でビルドが出る。`ITSAppUsesNonExemptEncryption = false` を Info.plist に入れてあるので、輸出規制の質問は出ない
 2. 初回だけ: TestFlight の「内部テスト」でグループを作り、自分を追加する
-3. iPhone の TestFlight アプリからインストールする
-4. 実機で通し確認（設計書 R12）をする
+3. 初回だけ: Apple から届く招待メール（件名に TestFlight）を **iPhone で**開き、「View in TestFlight」→「承認」する。承認するまで、テスターの状態は「利用可能なビルドなし」のままで、TestFlight アプリも「テスト準備完了」の画面から進まない
+   - メールが見つからないときは、グループからテスターを外して入れ直すと招待が届き直す（テスターの「…」から出る「メール」は自分で書く普通のメールで、招待ではない）
+   - iPhone の「設定 → 自分の名前 → メディアと購入」のアカウントが、招待したアドレスと同じであること
+4. iPhone の TestFlight アプリからインストールする。2 回目以降は「アップデート」を押すだけ
+5. 実機で通し確認（設計書 R12）をする
 
 ### 6. 審査に出す
 
@@ -154,4 +157,5 @@ git push origin vX.Y.Z
 | `flutter build` で「No valid code signing certificates were found」 | Xcode にアカウントが入っていないか Team が未選択。B-2・B-3 |
 | Signing の画面で「Your team has no devices」 | iPhone をつないで登録する。B-4 |
 | アップロードは成功したのに TestFlight に出てこない | ビルド番号を上げ忘れている。C-1 からやり直す |
+| TestFlight アプリが「テスト準備完了」「コードを使う」の画面から進まない | 招待を承認していない。C-5 の 3 |
 | アップロード後に「SDK が古い」というメールが来る | Xcode を上げてから C-3 をやり直す |
