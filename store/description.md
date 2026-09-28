@@ -18,7 +18,7 @@ zeibun
 
 ## 説明
 
-本アプリはデジタル庁・e-Gov の公式アプリではありません。法令データは e-Gov 法令検索（https://laws.e-gov.go.jp/） の法令API Version 2 から取得しています。
+本アプリはデジタル庁・e-Gov の公式アプリではありません。法令データは e-Gov 法令検索（ https://laws.e-gov.go.jp/ ）の法令API Version 2 から取得しています。
 
 税務の実務で条文を引くための、税制法令に絞った検索・閲覧アプリです。
 
