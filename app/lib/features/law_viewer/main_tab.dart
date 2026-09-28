@@ -109,10 +109,13 @@ class _HeaderCard extends StatelessWidget {
         if (law.isReference)
           _Notice(
               '${repealStatusLabel(law.repealStatus)}（${law.repealDate ?? '—'}）。現在は効力のない法令です（参考）',
-              scheme.surfaceContainerHighest),
+              scheme.surfaceContainerHighest,
+              scheme.onSurface),
         if (law.pendingRevisionId != null)
-          _Notice('未施行の改正があります。改正履歴タブで施行予定日を確認できます', scheme.tertiaryContainer),
-        if (_fetchNotice() case final n?) _Notice(n, scheme.errorContainer),
+          _Notice('未施行の改正があります。改正履歴タブで施行予定日を確認できます', scheme.tertiaryContainer,
+              scheme.onTertiaryContainer),
+        if (_fetchNotice() case final n?)
+          _Notice(n, scheme.errorContainer, scheme.onErrorContainer),
         if (loading) const LinearProgressIndicator(),
         const Divider(),
       ]),
@@ -139,9 +142,13 @@ class _HeaderCard extends StatelessWidget {
 }
 
 class _Notice extends StatelessWidget {
-  const _Notice(this.text, this.color);
+  const _Notice(this.text, this.color, this.onColor);
   final String text;
   final Color color;
+
+  /// 背景と対になる文字色。本文の既定色にしないのは、「コントラストを上げる」で
+  /// 背景だけ明るくなり、文字との差が 4.5:1 を割るため。
+  final Color onColor;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -149,7 +156,11 @@ class _Notice extends StatelessWidget {
         padding: const EdgeInsets.all(8),
         decoration:
             BoxDecoration(color: color, borderRadius: BorderRadius.circular(6)),
-        child: Text(text, style: Theme.of(context).textTheme.bodySmall),
+        child: Text(text,
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: onColor)),
       );
 }
 

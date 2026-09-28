@@ -24,24 +24,37 @@ class LawTile extends StatelessWidget {
       if (law.bodyCache == BodyCache.outdated)
         _Badge('改正あり（未取得）', scheme.error),
     ];
+    // 大きな文字で札を右に置かないのは、札が幅を取り、法令名が数文字ずつで
+    // 折り返されて読めなくなるため。1.3 倍は iOS の「さらに大きな文字」を
+    // 入れる前の最大付近
+    final badgesBelow = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+    final meta = Text(
+      [
+        lawTypeLabel(law.lawType),
+        if (law.category != null) law.category!,
+        if (law.isReference && law.repealDate != null)
+          '${repealStatusLabel(law.repealStatus)} ${law.repealDate}'
+        else if (law.currentEnforcedAt != null)
+          '施行 ${law.currentEnforcedAt}',
+        if (subtitleSuffix != null) subtitleSuffix!,
+      ].join(' · '),
+    );
     return ListTile(
       dense: true,
       title: Text(law.title,
           style: law.isReference
               ? TextStyle(color: scheme.onSurfaceVariant)
               : null),
-      subtitle: Text(
-        [
-          lawTypeLabel(law.lawType),
-          if (law.category != null) law.category!,
-          if (law.isReference && law.repealDate != null)
-            '${repealStatusLabel(law.repealStatus)} ${law.repealDate}'
-          else if (law.currentEnforcedAt != null)
-            '施行 ${law.currentEnforcedAt}',
-          if (subtitleSuffix != null) subtitleSuffix!,
-        ].join(' · '),
-      ),
-      trailing: badges.isEmpty ? null : Wrap(spacing: 4, children: badges),
+      subtitle: badgesBelow && badges.isNotEmpty
+          ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              meta,
+              const SizedBox(height: 4),
+              Wrap(spacing: 4, runSpacing: 4, children: badges),
+            ])
+          : meta,
+      trailing: badgesBelow || badges.isEmpty
+          ? null
+          : Wrap(spacing: 4, children: badges),
       onTap: onTap ?? () => context.push('/law/${law.lawId}'),
     );
   }

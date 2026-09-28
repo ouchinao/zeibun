@@ -268,6 +268,86 @@ void main() {
     handle.dispose();
   });
 
+  /// iOS の最大の文字（アクセシビリティサイズの最大）に近い倍率と、幅の狭い iPhone。
+  void largestTextOnSmallPhone(WidgetTester tester) {
+    tester.platformDispatcher.textScaleFactorTestValue = 3.1;
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    addTearDown(tester.view.reset);
+  }
+
+  /// タブの見出しが縦にも横にも切れずに収まっているか。
+  void expectTabLabelsFit(WidgetTester tester, List<String> labels) {
+    final bar = tester.getRect(find.byType(TabBar));
+    for (final label in labels) {
+      final text =
+          find.descendant(of: find.byType(TabBar), matching: find.text(label));
+      final paragraph = tester.renderObject<RenderParagraph>(text);
+      expect(paragraph.getMaxIntrinsicWidth(double.infinity),
+          lessThanOrEqualTo(paragraph.size.width + 0.5),
+          reason: '「$label」が横に切れている');
+      expect(paragraph.getMinIntrinsicHeight(paragraph.size.width),
+          lessThanOrEqualTo(paragraph.size.height + 0.5),
+          reason: '「$label」の下が切れている');
+      expect(tester.getRect(text).bottom, lessThanOrEqualTo(bar.bottom),
+          reason: '「$label」がタブの外にはみ出している');
+    }
+  }
+
+  testWidgets('at the largest text the law page tabs are not cut off',
+      (tester) async {
+    largestTextOnSmallPhone(tester);
+    await open(tester, '/law/426AC0000000011');
+    expectTabLabelsFit(tester, ['本文', '附則', '改正履歴']);
+    expect(exceptions(tester), isEmpty);
+  });
+
+  testWidgets(
+      'at the largest text the search results tabs are not cut off '
+      'and badges sit under the law name instead of squeezing it',
+      (tester) async {
+    await tester.runAsync(
+        () => db.customStatement("UPDATE laws SET pending_revision_id = 'x' "
+            "WHERE law_id = '426AC0000000011'"));
+    largestTextOnSmallPhone(tester);
+    await open(tester, '/search?q=地方法人税');
+    expectTabLabelsFit(tester, ['法令', '本文']);
+    final title = find.text('地方法人税法').first;
+    final paragraph = tester.renderObject<RenderParagraph>(title);
+    expect(paragraph.getMaxIntrinsicWidth(double.infinity),
+        lessThanOrEqualTo(paragraph.size.width + 0.5),
+        reason: '法令名が札に押されて折り返されている');
+    expect(tester.getRect(find.text('施行予定あり').first).top,
+        greaterThanOrEqualTo(tester.getRect(title).bottom));
+    expect(exceptions(tester), isEmpty);
+  });
+
+  testWidgets(
+      'with high contrast in dark mode, the sync banner and the pending '
+      'revision notice keep their text readable', (tester) async {
+    await tester.runAsync(() async {
+      // 同期の前に立てないのは、同期が施行予定を上書きして消すため
+      await container.read(syncServiceProvider).refreshNow();
+      await db.customStatement("UPDATE laws SET pending_revision_id = 'x' "
+          "WHERE law_id = '426AC0000000011'");
+    });
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(highContrast: true);
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    final handle = tester.ensureSemantics();
+    await open(tester, '/');
+    expect(find.textContaining('最終同期'), findsOneWidget);
+    expect(await violations(tester), isEmpty);
+    container.read(routerProvider).go('/law/426AC0000000011');
+    await pumpAWhile(tester);
+    expect(find.textContaining('未施行の改正があります'), findsOneWidget);
+    expect(await violations(tester), isEmpty);
+    handle.dispose();
+  });
+
   testWidgets(
       'removing a bookmark from home can be undone, '
       'keeping its original place in the list', (tester) async {
