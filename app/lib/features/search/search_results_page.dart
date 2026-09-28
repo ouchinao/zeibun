@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../data/repositories/search_repository.dart';
 import '../../providers.dart';
+import '../../util/tab_label.dart';
 import '../law_list/law_tile.dart';
 import 'full_text_results.dart';
 
@@ -24,7 +25,10 @@ class SearchResultsPage extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: Text('「$query」の検索結果'),
-          bottom: const TabBar(tabs: [Tab(text: '法令'), Tab(text: '本文')]),
+          bottom: const TabBar(tabs: [
+            Tab(child: TabLabel('法令')),
+            Tab(child: TabLabel('本文')),
+          ]),
         ),
         body: TabBarView(children: [
           _LawResults(query: query),

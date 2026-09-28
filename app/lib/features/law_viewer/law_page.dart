@@ -6,6 +6,7 @@ import 'package:zeibun_core/zeibun_core.dart';
 
 import '../../data/db/database.dart';
 import '../../providers.dart';
+import '../../util/tab_label.dart';
 import '../bookmarks/bookmark_law_button.dart';
 import 'article_menu.dart';
 import 'in_text_search.dart';
@@ -259,9 +260,9 @@ class _LawPageState extends ConsumerState<LawPage>
             onStep: _stepMatch,
           ),
         TabBar(controller: _tabs, tabs: const [
-          Tab(text: '本文'),
-          Tab(text: '附則'),
-          Tab(text: '改正履歴'),
+          Tab(child: TabLabel('本文')),
+          Tab(child: TabLabel('附則')),
+          Tab(child: TabLabel('改正履歴')),
         ]),
         Expanded(
           child: law == null
