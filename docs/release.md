@@ -1,53 +1,157 @@
 # リリース手順（iOS）
 
 設計書 §13 Phase R の R3。Android は v1 では出さない（R7）。
+コマンドはすべて Mac のターミナルで打つ。`~/zeibun` に clone してある前提。
 
-## 前提（初回だけ）
+## A. Mac の準備（Mac ごとに 1 回）
 
-- Apple Developer Program に登録済みで、Xcode にそのアカウントを追加してある
-- App Store Connect に Bundle ID `io.github.ouchinao.zeibun` のアプリを作ってある
-- `app/ios/Runner.xcworkspace` を Xcode で開き、Runner ターゲットの Signing & Capabilities で「Automatically manage signing」を ON にし、Team を選んである（この変更は `project.pbxproj` に `DEVELOPMENT_TEAM` として入るので、そのままコミットしてよい。設定済み）
-- 署名の初回は、テスト用の iPhone をケーブルでつないで Xcode の実行先に選び、Team に端末を登録させる。登録が無いと「Your team has no devices」で開発用プロファイルが作れず、`flutter build ipa` も通らない
-- 手元の Mac に Flutter stable が入っている。`flutter doctor` の 1 行目に「(Rosetta)」が出ないこと
-- Apple シリコンの Mac では、ターミナルを Rosetta で開かない（ターミナルの「情報を見る」で「Rosetta を使用して開く」を外す）。Rosetta のまま入れた Homebrew は `/usr/local` に入り、ビルド済みの部品が無いため CocoaPods の依存を何時間もかけてソースからビルドする。CocoaPods が要るときは `/opt/homebrew` の Homebrew で入れる
-- `pod install` は手で打たない。Podfile はリポジトリに無く、必要なら `flutter build ios --config-only --release` が作る（v1.0.0 のビルドでは Swift Package Manager で解決され、Podfile は作られなかった）
-
-## 毎回の手順
-
-1. `main` を最新にし、`app/pubspec.yaml` の `version` を上げる。`x.y.z+ビルド番号` の形で、ビルド番号は前回より必ず大きくする（App Store Connect は同じビルド番号を受け付けない）
-2. 変更内容を `CHANGELOG` 代わりに PR の説明とストアの「このバージョンの新機能」に書く
-3. 手元で確認する
+1. ターミナルが Apple シリコンのまま動いているか確かめる
 
    ```sh
-   cd app
+   uname -m        # arm64 ならOK。x86_64 なら下の手順で直す
+   ```
+
+   `x86_64` のときは、ターミナルを終了（⌘Q）→ Finder で「アプリケーション → ユーティリティ → ターミナル」を右クリック →「情報を見る」→「Rosetta を使用して開く」のチェックを外す → 開き直して `uname -m` をもう一度。
+
+   Rosetta のまま入れた Homebrew は `/usr/local` に入り、ビルド済みの部品が配られないので、依存を何時間もかけてソースからビルドする。
+
+2. Homebrew（Apple シリコン用）と CocoaPods を入れる
+
+   ```sh
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+   echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+   eval "$(/opt/homebrew/bin/brew shellenv)"
+   which brew                 # /opt/homebrew/bin/brew と出ること
+   brew install cocoapods     # 数分で終わる。何十分もかかるなら 1 に戻る
+   pod --version
+   ```
+
+3. Flutter が動くか確かめる
+
+   ```sh
+   flutter doctor
+   ```
+
+   - 1 行目に「(Rosetta)」が出ないこと
+   - Xcode の行が ✓ であること（Android の ✗ は v1 では無視してよい）
+
+4. git の作者を GitHub の非公開アドレスにする（公開リポジトリに個人のメールアドレスを出さないため）
+
+   ```sh
+   git config --global user.name "ouchinao"
+   git config --global user.email "67366394+ouchinao@users.noreply.github.com"
+   ```
+
+5. リポジトリを取ってくる
+
+   ```sh
+   git clone https://github.com/ouchinao/zeibun.git ~/zeibun
+   ```
+
+## B. 署名の準備（Mac ごとに 1 回）
+
+`DEVELOPMENT_TEAM` はリポジトリに入っているので、Team を選び直す必要は無い。Xcode にアカウントを入れて、端末を 1 台登録するだけ。
+
+1. Xcode を開く
+
+   ```sh
+   cd ~/zeibun/app
    flutter pub get
-   flutter analyze --fatal-infos
-   flutter test
+   open ios/Runner.xcworkspace
    ```
 
-4. アーカイブを作る
+   `.xcodeproj` を開かないのは、プラグインの設定が `.xcworkspace` 側にしか入らず、そちらでは署名やビルドが通らないため。
 
-   ```sh
-   flutter build ipa --release
-   ```
+2. Xcode → Settings… → Accounts →「＋」→「Apple Account」で、Developer Program のアカウントでサインインする。「(Personal Team)」ではない Team が出ること
+3. 左の青い「Runner」→ TARGETS の「Runner」→「Signing & Capabilities」で次を確かめる
+   - 「Automatically manage signing」にチェック
+   - Team が自分の Team
+   - Bundle Identifier が `io.github.ouchinao.zeibun`
+4. 「Your team has no devices」と出たら、iPhone をケーブルでつなぐ
+   - iPhone のロックを外し、「このコンピュータを信頼」→ パスコード
+   - Xcode 上部の実行先を、つないだ iPhone にする
+   - 求められたら iPhone の「設定 → プライバシーとセキュリティ → デベロッパモード」を ON（再起動あり）
+   - Signing の画面で「Try Again」を押し、⚠ が消えること
 
-   `build/ios/archive/Runner.xcarchive` と `build/ios/ipa/*.ipa` ができる。署名でつまずいたら Xcode で `Runner.xcworkspace` を開き Product > Archive で同じことをする
+`pod install` は手で打たない。Podfile はリポジトリに無く、要るときは Flutter のビルドが作る（v1.0.0 は Swift Package Manager で解決され、Podfile は作られなかった）。
 
-5. アップロードする。次のどちらか
-   - Xcode の Organizer でアーカイブを選び Distribute App > App Store Connect
-   - `xcrun altool` の後継である Transporter アプリに `.ipa` をドラッグ
-6. App Store Connect でビルドが処理されるのを待つ（数分〜数十分）。`ITSAppUsesNonExemptEncryption = false` を Info.plist に入れてあるので、輸出規制の質問は出ない
-7. TestFlight の内部テストに自分を入れ、実機で通し確認（R12）をする
-8. 問題なければ App Store のバージョンにそのビルドを割り当て、審査に出す
-9. 審査が通って公開されたら、`main` の該当コミットに `v x.y.z` のタグを打つ
+## C. 毎回の手順
 
-   ```sh
-   git tag -a vX.Y.Z -m "App Store 公開 X.Y.Z"
-   git push origin vX.Y.Z
-   ```
+### 1. バージョンを上げる（PR で）
 
-## つまずきやすいところ
+`app/pubspec.yaml` の `version` を `x.y.z+ビルド番号` の形で上げる。ビルド番号は前回より必ず大きくする（同じ番号は App Store Connect に捨てられる）。
 
-- ビルド番号を上げ忘れると、アップロードは成功するが App Store Connect が黙って捨てる
-- `flutter build ipa` は `--export-method` を省略すると App Store 向けになる。TestFlight もこれでよい
-- Pod まわりで壊れたら `cd ios && pod repo update && pod install`
+```sh
+cd ~/zeibun
+git checkout main && git pull
+git checkout -b version-X.Y.Z
+# app/pubspec.yaml の version を書き換える（例: 1.0.0+1 → 1.0.1+2）
+git commit -am "バージョンを X.Y.Z+N にする"
+git push -u origin version-X.Y.Z
+```
+
+PR を作ってマージする。変更内容は PR の説明と、ストアの「このバージョンの新機能」に書く。
+
+### 2. 手元で確かめる
+
+```sh
+cd ~/zeibun
+git checkout main && git pull
+cd app
+flutter pub get
+flutter analyze --fatal-infos
+flutter test --timeout 60s
+```
+
+### 3. ipa を作る
+
+```sh
+flutter build ipa --release
+ls build/ios/ipa/          # .ipa（v1.0.0 で 23MB）ができていること
+```
+
+最後に「Built IPA to build/ios/ipa」と出れば成功。
+
+### 4. アップロードする
+
+Transporter を使う（Mac App Store から入れる）。
+
+1. Transporter を開き、Developer Program のアカウントでサインイン
+2. Finder で `~/zeibun/app/build/ios/ipa/` を開き、`.ipa` を Transporter にドラッグ
+3. 「配信」を押す
+
+Transporter が使えないときは、Xcode で `ios/Runner.xcworkspace` を開き、実行先を「Any iOS Device (arm64)」にして Product → Archive → Organizer で Distribute App → App Store Connect → Upload。
+
+### 5. TestFlight で確かめる
+
+1. App Store Connect → アプリ → TestFlight に、10〜30 分でビルドが出る。`ITSAppUsesNonExemptEncryption = false` を Info.plist に入れてあるので、輸出規制の質問は出ない
+2. 初回だけ: TestFlight の「内部テスト」でグループを作り、自分を追加する
+3. iPhone の TestFlight アプリからインストールする
+4. 実機で通し確認（設計書 R12）をする
+
+### 6. 審査に出す
+
+1. App Store Connect → アプリ → 配信のバージョンを開き、「ビルド」の欄で TestFlight で確かめたビルドを選ぶ
+2. 「このバージョンの新機能」を書く（初回は不要）
+3. 「審査用に追加」→「審査に提出」
+
+### 7. 公開されたらタグを打つ
+
+```sh
+cd ~/zeibun
+git checkout main && git pull
+git tag -a vX.Y.Z -m "App Store 公開 X.Y.Z"
+git push origin vX.Y.Z
+```
+
+## つまずいたとき
+
+| 症状 | 直し方 |
+|---|---|
+| `brew install` が何十分も終わらない、「Tier 3 configuration」と出る | ターミナルが Rosetta で動いている。A-1 からやり直す |
+| `flutter doctor` の 1 行目に「(Rosetta)」 | 同上 |
+| `pod install` で「No Podfile found」 | 手で打たなくてよい。`flutter build ipa` から進める |
+| `flutter build` で「No valid code signing certificates were found」 | Xcode にアカウントが入っていないか Team が未選択。B-2・B-3 |
+| Signing の画面で「Your team has no devices」 | iPhone をつないで登録する。B-4 |
+| アップロードは成功したのに TestFlight に出てこない | ビルド番号を上げ忘れている。C-1 からやり直す |
+| アップロード後に「SDK が古い」というメールが来る | Xcode を上げてから C-3 をやり直す |
