@@ -34,7 +34,7 @@ zeibun 税法検索（以下「本アプリ」）は、ouchinao が個人で開�
 
 ## お問い合わせ
 
-本アプリに関するお問い合わせは、GitHub の Issues（ https://github.com/ouchinao/zeibun/issues ）で受け付けています。
+本アプリに関するお問い合わせは、GitHub の [Issues](https://github.com/ouchinao/zeibun/issues) で受け付けています。
 
 ## 改定
 
