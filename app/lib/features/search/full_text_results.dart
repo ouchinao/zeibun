@@ -124,9 +124,7 @@ class _HitTile extends StatelessWidget {
       subtitle: Text.rich(
         TextSpan(
             children: highlightSpans(hit.snippet, terms,
-                style: TextStyle(
-                    backgroundColor: theme.colorScheme.tertiaryContainer,
-                    fontWeight: FontWeight.bold))),
+                style: highlightStyle(theme.colorScheme))),
         maxLines: 3,
         overflow: TextOverflow.ellipsis,
       ),

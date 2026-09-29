@@ -1,4 +1,4 @@
-import 'package:flutter/painting.dart';
+import 'package:flutter/material.dart';
 import 'package:zeibun_core/zeibun_core.dart';
 
 /// 照合に `normalizeForSearch` ではなく `normalizeForMatch` を使うのは、
@@ -27,3 +27,10 @@ List<InlineSpan> highlightSpans(String text, List<String> terms,
   }
   return spans;
 }
+
+/// 一致箇所の見た目。背景だけ変えて文字色を既定のままにしないのは、「コントラストを
+/// 上げる」で背景だけ明るくなり、ダークの明るい文字が読めなくなるため。
+TextStyle highlightStyle(ColorScheme scheme) => TextStyle(
+    backgroundColor: scheme.tertiaryContainer,
+    color: scheme.onTertiaryContainer,
+    fontWeight: FontWeight.bold);

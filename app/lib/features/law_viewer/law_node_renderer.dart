@@ -161,6 +161,15 @@ class _Renderer {
     );
   }
 
+  /// 項・号の番号の欄。幅を固定にしないのは、文字を大きくしたときや「十一」の
+  /// ような長い番号で欄に収まらず、本文の 1 文字目に重なるため。番号の幅だけに
+  /// 詰めないのは、「一」と「二」のような短い番号ごとに本文の書き出しがずれるため。
+  Widget _number(String text, TextStyle style) => ConstrainedBox(
+        constraints: BoxConstraints(
+            minWidth: MediaQuery.textScalerOf(context).scale(28)),
+        child: Text(text, style: style, softWrap: false),
+      );
+
   /// 項。第 1 項は条名を先頭に置き、2 項以降は項番号をぶら下げる。
   Widget _paragraph(LawNode n, {String? leadingTitle}) {
     final num = paragraphNumber(n);
@@ -181,13 +190,8 @@ class _Renderer {
               child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(
-                width: leadingTitle != null ? 0 : 28,
-                child: leadingTitle != null
-                    ? null
-                    : Text(num,
-                        style: base.copyWith(fontWeight: FontWeight.w600)),
-              ),
+              if (leadingTitle == null)
+                _number(num, base.copyWith(fontWeight: FontWeight.w600)),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -217,7 +221,7 @@ class _Renderer {
           child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 28, child: Text(title, style: base)),
+          _number(title, base),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -309,10 +313,7 @@ class _Renderer {
                 style: prefixBold
                     ? base.copyWith(fontWeight: FontWeight.bold)
                     : base),
-          ...highlightSpans(text, highlight,
-              style: TextStyle(
-                  backgroundColor: scheme.tertiaryContainer,
-                  fontWeight: FontWeight.bold)),
+          ...highlightSpans(text, highlight, style: highlightStyle(scheme)),
         ]),
         style: base,
       ),
