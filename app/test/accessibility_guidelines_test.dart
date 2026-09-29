@@ -349,6 +349,83 @@ void main() {
   });
 
   testWidgets(
+      'at the largest text the paragraph and item numbers fit '
+      'instead of running into the text', (tester) async {
+    largestTextOnSmallPhone(tester);
+    // 第一条にしないのは、項・号の番号が無く、確かめる対象が無いため
+    await open(tester, '/law/426AC0000000011/article/2');
+    final rows = find.byWidgetPredicate(
+        (w) => w is Row && w.children.length == 2 && w.children[1] is Expanded);
+    expect(rows, findsWidgets);
+    var checked = 0;
+    for (final row in rows.evaluate()) {
+      final numberText = find.descendant(
+          of: find.byWidget((row.widget as Row).children.first),
+          matching: find.byType(Text));
+      if (numberText.evaluate().isEmpty) continue;
+      checked++;
+      final number = tester.renderObject<RenderParagraph>(numberText);
+      expect(number.getMaxIntrinsicWidth(double.infinity),
+          lessThanOrEqualTo(number.size.width + 0.5),
+          reason: '「${number.text.toPlainText()}」が欄に収まらず本文に重なる');
+    }
+    expect(checked, greaterThan(0));
+    expect(exceptions(tester), isEmpty);
+  });
+
+  /// 文字列の中で背景色の付いた部分（検索の一致箇所）の、文字と背景のコントラスト比。
+  List<double> highlightContrasts(WidgetTester tester) {
+    double ratio(Color a, Color b) {
+      final (hi, lo) = a.computeLuminance() > b.computeLuminance()
+          ? (a.computeLuminance(), b.computeLuminance())
+          : (b.computeLuminance(), a.computeLuminance());
+      return (hi + 0.05) / (lo + 0.05);
+    }
+
+    final ratios = <double>[];
+    void visit(InlineSpan span, TextStyle inherited) {
+      final style = inherited.merge(span.style);
+      if (span is TextSpan) {
+        if (style.backgroundColor case final bg?) {
+          ratios.add(ratio(style.color!, bg));
+        }
+        for (final c in span.children ?? const <InlineSpan>[]) {
+          visit(c, style);
+        }
+      }
+    }
+
+    for (final e in find.byType(RichText).evaluate()) {
+      final paragraph = e.renderObject! as RenderParagraph;
+      visit(paragraph.text, const TextStyle());
+    }
+    return ratios;
+  }
+
+  testWidgets(
+      'with high contrast in dark mode, search matches keep their text '
+      'readable in the law text and in full text results', (tester) async {
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(highContrast: true);
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await open(tester, '/law/426AC0000000011');
+    await screens['law page with in-text search open']!.$2!(tester);
+    final inLaw = highlightContrasts(tester);
+    expect(inLaw, isNotEmpty);
+    expect(inLaw, everyElement(greaterThanOrEqualTo(4.5)));
+
+    container.read(routerProvider).go('/search?q=法人');
+    await pumpAWhile(tester);
+    await tester.tap(find.text('本文'));
+    await pumpAWhile(tester);
+    final inResults = highlightContrasts(tester);
+    expect(inResults, isNotEmpty);
+    expect(inResults, everyElement(greaterThanOrEqualTo(4.5)));
+  });
+
+  testWidgets(
       'removing a bookmark from home can be undone, '
       'keeping its original place in the list', (tester) async {
     await BookmarkRepository(db: db, clock: () => DateTime(2026, 9, 1))
