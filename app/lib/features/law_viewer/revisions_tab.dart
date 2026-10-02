@@ -53,6 +53,7 @@ class RevisionsTab extends ConsumerWidget {
   static String _failureReason(FetchFailure f) => switch (f) {
         FetchFailure.offline => 'オフラインのため',
         FetchFailure.server => 'e-Gov から取得できず',
+        FetchFailure.maintenance => 'e-Gov 法令検索のメンテナンス中のため',
         FetchFailure.invalidData => '取得した履歴を解釈できず',
         FetchFailure.storageFull => '端末の空き容量が足りず保存できず',
       };

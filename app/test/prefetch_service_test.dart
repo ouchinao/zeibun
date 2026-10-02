@@ -109,6 +109,18 @@ void main() {
     expect(api.calls.length, 3);
   });
 
+  test('a run stops at the first law when e-Gov is under maintenance',
+      () async {
+    api.onPathPrefix(
+        '/api/2/law_data/',
+        (u) => throw EgovApiException(EgovErrorKind.maintenance, u,
+            statusCode: 403));
+    final result = await service.start() as PrefetchFinished;
+    expect(result.outcome, PrefetchOutcome.maintenance);
+    expect(result.progress.failed, 1);
+    expect(api.calls.length, 1);
+  });
+
   test('an unexpected error ends the run as aborted instead of hanging',
       () async {
     final broken = (await db.getLaw('340AC0000000034'))!.currentRevisionId!;

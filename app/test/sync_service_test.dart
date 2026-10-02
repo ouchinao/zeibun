@@ -107,6 +107,15 @@ void main() {
     expect((await db.allLaws()).length, 12);
   });
 
+  test('e-Gov maintenance is reported as maintenance, not as a broken response',
+      () async {
+    api.onPath(
+        '/api/2/laws',
+        (u) => throw EgovApiException(EgovErrorKind.maintenance, u,
+            statusCode: 403));
+    expect(await service().runOnLaunch(), isA<SyncMaintenance>());
+  });
+
   test('second launch within 10 minutes skips the catalog fetch', () async {
     api.onPath('/api/2/laws', catalogHandler());
     await service().runOnLaunch();

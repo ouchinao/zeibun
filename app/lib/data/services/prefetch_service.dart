@@ -52,6 +52,9 @@ enum PrefetchOutcome {
   /// 端末の空き容量が尽きて書き込めなかった。続けても全件失敗するので止めた
   storageFull,
 
+  /// e-Gov 法令検索がメンテナンス中だった。時間をおけば再実行で続きから取れる
+  maintenance,
+
   /// 想定していない例外で止めた
   aborted,
 }
@@ -153,6 +156,12 @@ class PrefetchService {
           offlineStreak = 0;
         } on EgovApiException catch (e) {
           progress = progress.copyWith(failed: progress.failed + 1);
+          // 残りを試さないのは、メンテナンス中は残り全件が同じ失敗になり、
+          // その間も e-Gov に要求を送り続けることになるため
+          if (e.kind == EgovErrorKind.maintenance) {
+            outcome = PrefetchOutcome.maintenance;
+            break;
+          }
           if (e.kind.isOffline &&
               ++offlineStreak >= maxConsecutiveOfflineFailures) {
             outcome = PrefetchOutcome.offline;

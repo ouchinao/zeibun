@@ -25,7 +25,11 @@ enum EgovErrorKind {
   timeout,
   serverError,
   clientError,
-  tooLarge;
+  tooLarge,
+
+  /// e-Gov 法令検索のメンテナンス中。clientError や serverError に混ぜないのは、
+  /// 待てば直ることを利用者に伝え、障害と区別するため。
+  maintenance;
 
   /// serverError を含めないのは、e-Gov 側の障害を「オフライン」と出すと
   /// 利用者が自分の回線を疑うため。
@@ -106,7 +110,8 @@ class DioEgovApi extends EgovApi {
         return await _getOnce(uri);
       } on EgovApiException catch (e) {
         if (e.kind == EgovErrorKind.clientError ||
-            e.kind == EgovErrorKind.tooLarge) {
+            e.kind == EgovErrorKind.tooLarge ||
+            e.kind == EgovErrorKind.maintenance) {
           rethrow;
         }
         lastError = e;
@@ -148,6 +153,10 @@ class DioEgovApi extends EgovApi {
     }
     final status = res.statusCode ?? 0;
     final bytes = res.data ?? const <int>[];
+    if (status >= 400 && _isMaintenancePage(bytes)) {
+      throw EgovApiException(EgovErrorKind.maintenance, uri,
+          statusCode: status, message: 'under maintenance');
+    }
     if (status >= 500) {
       throw EgovApiException(EgovErrorKind.serverError, uri,
           statusCode: status, message: 'server error');
@@ -180,3 +189,8 @@ class DioEgovApi extends EgovApi {
     }
   }
 }
+
+/// メンテナンス中のページか。状態コードで見分けないのは、メンテナンス中の e-Gov が
+/// 503 ではなく 403 と案内ページを返すため（2026-10-02 実測）。
+bool _isMaintenancePage(List<int> bytes) =>
+    utf8.decode(bytes, allowMalformed: true).contains('メンテナンス中');

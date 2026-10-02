@@ -32,6 +32,10 @@ enum FetchFailure {
   /// 4xx/5xx と受信上限超過。e-Gov 側の応答なので再試行しても直らない
   server,
 
+  /// e-Gov 法令検索のメンテナンス中。server に混ぜないのは、時間をおけば
+  /// 取れることを伝えるため
+  maintenance,
+
   /// XML / JSON の異常とリビジョン不一致
   invalidData,
 
@@ -44,6 +48,8 @@ enum FetchFailure {
 /// 文言に流し込む逃げ道になるため。null を返し、呼び出し側で投げ直す。
 FetchFailure? classifyFetchError(Object e) => switch (e) {
       EgovApiException(kind: final k) when k.isOffline => FetchFailure.offline,
+      EgovApiException(kind: EgovErrorKind.maintenance) =>
+        FetchFailure.maintenance,
       EgovApiException() => FetchFailure.server,
       FormatException() || RevisionMismatch() => FetchFailure.invalidData,
       _ when isStorageFull(e) => FetchFailure.storageFull,

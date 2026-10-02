@@ -7,6 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zeibun/app.dart';
 import 'package:zeibun/data/db/database.dart';
+import 'package:zeibun/data/egov/egov_api.dart';
 import 'package:zeibun/data/services/sync_service.dart';
 import 'package:zeibun/features/settings/settings_controller.dart';
 import 'package:zeibun/data/repositories/bookmark_repository.dart';
@@ -346,6 +347,56 @@ void main() {
     expect(find.textContaining('未施行の改正があります'), findsOneWidget);
     expect(await violations(tester), isEmpty);
     handle.dispose();
+  });
+
+  for (final (name, dark, highContrast) in [
+    ('light mode', false, false),
+    ('dark mode', true, false),
+    ('dark mode with high contrast', true, true),
+  ]) {
+    testWidgets(
+        'in $name, the sync banner during e-Gov maintenance '
+        'keeps its text readable', (tester) async {
+      api.onPath(
+          '/api/2/laws',
+          (u) => throw EgovApiException(EgovErrorKind.maintenance, u,
+              statusCode: 403));
+      await tester
+          .runAsync(() => container.read(syncServiceProvider).refreshNow());
+      if (dark) {
+        tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+        addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      }
+      if (highContrast) {
+        tester.platformDispatcher.accessibilityFeaturesTestValue =
+            const FakeAccessibilityFeatures(highContrast: true);
+        addTearDown(
+            tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+      }
+      final handle = tester.ensureSemantics();
+      await open(tester, '/');
+      expect(find.textContaining('メンテナンス中'), findsOneWidget);
+      expect(await violations(tester), isEmpty);
+      handle.dispose();
+    });
+  }
+
+  testWidgets(
+      'at the largest text the sync banner wraps and shows its whole message '
+      'instead of cutting it off', (tester) async {
+    api.onPath(
+        '/api/2/laws',
+        (u) => throw EgovApiException(EgovErrorKind.maintenance, u,
+            statusCode: 403));
+    await tester
+        .runAsync(() => container.read(syncServiceProvider).refreshNow());
+    largestTextOnSmallPhone(tester);
+    await open(tester, '/');
+    final message =
+        tester.renderObject<RenderParagraph>(find.textContaining('メンテナンス中'));
+    expect(message.didExceedMaxLines, isFalse, reason: '同期バナーの文言が切り詰められている');
+    expect(find.textContaining('一覧を取得できませんでした'), findsOneWidget);
+    expect(exceptions(tester), isEmpty);
   });
 
   testWidgets(

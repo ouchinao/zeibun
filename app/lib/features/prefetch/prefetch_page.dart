@@ -154,10 +154,13 @@ class _FinishedCard extends StatelessWidget {
       PrefetchOutcome.cancelled => '中断しました（$summary）',
       PrefetchOutcome.offline => '通信できないため中断しました（$summary）',
       PrefetchOutcome.storageFull => '端末の空き容量が足りないため中断しました（$summary）',
+      PrefetchOutcome.maintenance => 'e-Gov 法令検索がメンテナンス中のため中断しました（$summary）',
       PrefetchOutcome.aborted => 'エラーのため中断しました（$summary）',
     };
     final note = switch (s.outcome) {
       PrefetchOutcome.storageFull => '保存済みの法令はそのまま使えます。空き容量を増やしてから再実行してください。',
+      PrefetchOutcome.maintenance =>
+        '保存済みの法令はそのまま使えます。時間をおいて再実行すると、保存していない法令から続けます。',
       _ when s.progress.failed > 0 || s.outcome == PrefetchOutcome.aborted =>
         '取れなかった法令は次回の実行、または法令を開いたときに取り直します。',
       _ => null,

@@ -50,6 +50,13 @@ class SyncOffline extends SyncState {
   final DateTime? lastSyncAt;
 }
 
+/// e-Gov 法令検索のメンテナンス中。SyncError に文言を渡す形にしないのは、
+/// 利用者の操作や端末の問題ではないことを、バナーの色と文言で区別するため。
+class SyncMaintenance extends SyncState {
+  const SyncMaintenance(this.lastSyncAt);
+  final DateTime? lastSyncAt;
+}
+
 class SyncError extends SyncState {
   const SyncError(this.message, this.lastSyncAt);
   final String message;
@@ -184,6 +191,8 @@ class SyncService {
       return _emit(switch (e) {
         EgovApiException(kind: final k) when k.isOffline =>
           SyncOffline(lastSync),
+        EgovApiException(kind: EgovErrorKind.maintenance) =>
+          SyncMaintenance(lastSync),
         EgovApiException(kind: final k) =>
           SyncError('e-Gov からの応答が異常です（${k.name}）', lastSync),
         FormatException() ||
