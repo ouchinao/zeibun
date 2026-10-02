@@ -50,6 +50,12 @@ class SyncBanner extends ConsumerWidget {
           scheme.tertiaryContainer,
           scheme.onTertiaryContainer
         ),
+      SyncMaintenance(:final lastSyncAt) => (
+          'e-Gov 法令検索がメンテナンス中。一覧を取得できませんでした${_previous(lastSyncAt)}',
+          Icons.construction,
+          scheme.tertiaryContainer,
+          scheme.onTertiaryContainer
+        ),
       SyncError(:final message, :final lastSyncAt) => (
           '$message${_previous(lastSyncAt)}',
           Icons.error_outline,
@@ -72,7 +78,9 @@ class SyncBanner extends ConsumerWidget {
               : () => ref.read(syncServiceProvider).refreshNow(),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: Row(children: [
+            // 1 行に切り詰めないのは、メンテナンス中やオフラインの文言は標準の
+            // 文字サイズでも収まらず、理由や前回の同期時刻が見えなくなるため
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Icon(icon, size: 16, color: onColor),
               const SizedBox(width: 8),
               Expanded(
@@ -80,8 +88,7 @@ class SyncBanner extends ConsumerWidget {
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
-                          ?.copyWith(color: onColor),
-                      overflow: TextOverflow.ellipsis)),
+                          ?.copyWith(color: onColor))),
             ]),
           ),
         ),

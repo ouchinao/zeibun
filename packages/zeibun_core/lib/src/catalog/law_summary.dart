@@ -117,6 +117,44 @@ class LawSummary {
   static Map<String, dynamic> _map(Object? o) =>
       o is Map ? o.cast<String, dynamic>() : const {};
 
+  /// アプリに同梱する一覧の 1 行。API の行をそのまま残さないのは、
+  /// `asof` あり・なしの 2 行から現行を選ぶ判定を、同梱の時点で済ませるため。
+  Map<String, dynamic> toJson() => {
+        'law_id': lawId,
+        'law_num': lawNum,
+        'law_type': lawType,
+        'title': title,
+        if (titleKana != null) 'title_kana': titleKana,
+        if (abbrev != null) 'abbrev': abbrev,
+        if (category != null) 'category': category,
+        if (promulgationDate != null) 'promulgation_date': promulgationDate,
+        'repeal_status': repealStatus,
+        if (repealDate != null) 'repeal_date': repealDate,
+        if (updated != null) 'updated': updated,
+        if (currentRevisionId != null) 'current_revision_id': currentRevisionId,
+        if (currentEnforcedAt != null) 'current_enforced_at': currentEnforcedAt,
+        if (amendmentLawTitle != null) 'amendment_law_title': amendmentLawTitle,
+        if (pendingRevisionId != null) 'pending_revision_id': pendingRevisionId,
+      };
+
+  factory LawSummary.fromJson(Map<String, dynamic> j) => LawSummary(
+        lawId: j['law_id'] as String,
+        lawNum: j['law_num'] as String? ?? '',
+        lawType: j['law_type'] as String? ?? '',
+        title: j['title'] as String? ?? '',
+        titleKana: j['title_kana'] as String?,
+        abbrev: j['abbrev'] as String?,
+        category: j['category'] as String?,
+        promulgationDate: j['promulgation_date'] as String?,
+        repealStatus: j['repeal_status'] as String? ?? RepealStatus.none,
+        repealDate: j['repeal_date'] as String?,
+        updated: j['updated'] as String?,
+        currentRevisionId: j['current_revision_id'] as String?,
+        currentEnforcedAt: j['current_enforced_at'] as String?,
+        amendmentLawTitle: j['amendment_law_title'] as String?,
+        pendingRevisionId: j['pending_revision_id'] as String?,
+      );
+
   @override
   String toString() => 'LawSummary($lawId $title rev=$currentRevisionId)';
 }

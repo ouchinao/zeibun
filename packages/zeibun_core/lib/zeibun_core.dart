@@ -11,6 +11,8 @@ library;
 
 export 'src/api/egov_requests.dart';
 export 'src/api/law_data_envelope.dart';
+export 'src/catalog/catalog_fetcher.dart';
+export 'src/catalog/catalog_snapshot.dart';
 export 'src/catalog/category_codes.dart';
 export 'src/catalog/law_scope.dart';
 export 'src/catalog/law_summary.dart';

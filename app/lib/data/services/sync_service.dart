@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:zeibun_core/zeibun_core.dart';
@@ -49,6 +50,13 @@ class SyncOffline extends SyncState {
   final DateTime? lastSyncAt;
 }
 
+/// e-Gov 法令検索のメンテナンス中。SyncError に文言を渡す形にしないのは、
+/// 利用者の操作や端末の問題ではないことを、バナーの色と文言で区別するため。
+class SyncMaintenance extends SyncState {
+  const SyncMaintenance(this.lastSyncAt);
+  final DateTime? lastSyncAt;
+}
+
 class SyncError extends SyncState {
   const SyncError(this.message, this.lastSyncAt);
   final String message;
@@ -70,6 +78,7 @@ class SyncService {
     DateTime Function()? clock,
     this.minInterval = const Duration(minutes: 10),
     this.prefetch,
+    this.loadBundledCatalog,
   })  : scope = scope ?? LawScope.tax,
         requests = requests ?? EgovRequests(),
         _clock = clock ?? DateTime.now;
@@ -85,6 +94,11 @@ class SyncService {
 
   /// REVISED / CORRECTED になった法令の本文を取り直すフック（先読み設定が ON のとき）。
   final Future<void> Function(List<CatalogChange> changes)? prefetch;
+
+  /// アプリに同梱した法令一覧（JSON）を読む。端末に一覧が無いときだけ呼ぶ。
+  /// 中身を受け取らないのは、一覧がある 2 回目以降の起動でも 300KB 近い asset を
+  /// 毎回読むことになるため。
+  final Future<String> Function()? loadBundledCatalog;
 
   final ValueNotifier<SyncState> state = ValueNotifier(const SyncIdle());
 
@@ -128,11 +142,14 @@ class SyncService {
   Future<SyncState> _sync() async {
     final lastSync = await _metaDate(_metaLastSync);
     _emit(const SyncChecking());
+    await _seedIfEmpty();
     final startedAt = _clock();
     await db.setMeta(_metaLastAttempt, startedAt.toIso8601String());
     final runId = await db.startSyncRun(startedAt.toIso8601String());
     try {
-      final remote = await _fetchCatalog();
+      final remote = await CatalogFetcher(
+              getJson: api.getJson, scope: scope, requests: requests)
+          .fetch();
       final local = await db.localLawStates();
       final diff = diffCatalog(remote: remote.values, local: local);
       final now = _clock().toIso8601String();
@@ -174,6 +191,8 @@ class SyncService {
       return _emit(switch (e) {
         EgovApiException(kind: final k) when k.isOffline =>
           SyncOffline(lastSync),
+        EgovApiException(kind: EgovErrorKind.maintenance) =>
+          SyncMaintenance(lastSync),
         EgovApiException(kind: final k) =>
           SyncError('e-Gov からの応答が異常です（${k.name}）', lastSync),
         FormatException() ||
@@ -183,6 +202,35 @@ class SyncService {
           SyncError('端末の空き容量が足りず、法令一覧を保存できませんでした', lastSync),
         _ => SyncError('同期に失敗しました: $e', lastSync),
       });
+    }
+  }
+
+  /// 端末に一覧が 1 件も無ければ、同梱の一覧で埋める。
+  ///
+  /// 起動処理で同期と別に埋めないのは、バナーからの手動更新と並走すると、取得した
+  /// 最新の一覧を古い同梱の一覧で上書きしうるため（同期の中なら `_syncOnce` の
+  /// 相乗りに乗る）。取得の後に埋めないのは、e-Gov がメンテナンス中や圏外のときに
+  /// 一覧が空のまま何もできなくなるため。最終同期の時刻を進めないのは、同梱の
+  /// 一覧は古いことがあり、10 分抑制で取り直しが遅れるため。
+  Future<void> _seedIfEmpty() async {
+    final load = loadBundledCatalog;
+    if (load == null || (await db.localLawStates()).isNotEmpty) return;
+    try {
+      final snap = CatalogSnapshot.fromJson(
+          jsonDecode(await load()) as Map<String, dynamic>);
+      await db.applyCatalogChanges(
+        present: [
+          for (final l in snap.laws)
+            if (scope.reasonFor(l) case final reason?)
+              (summary: l, scopeReason: reason),
+        ],
+        missing: const [],
+        at: snap.generatedAt,
+      );
+    } catch (e) {
+      // 失敗を投げ直さないのは、同梱の一覧は予備にすぎず、e-Gov から取れれば
+      // 足りるため
+      debugPrint('bundled catalog not loaded: $e');
     }
   }
 
@@ -197,55 +245,6 @@ class SyncService {
   }
 
   SyncState _emit(SyncState s) => state.value = s;
-
-  /// スコープの一覧を取り、法令 ID → LawSummary にまとめる。
-  ///
-  /// クエリを並列に投げないのは、5 req/s の自主制限を守るため。
-  /// `asof=2099-12-31` を付けるのは、1 リクエストで現行（`current_revision_info`）と
-  /// 未施行の履歴（`revision_info`）が同時に取れ、`/law_revisions` を全法令に
-  /// 投げずに済むから。
-  Future<Map<String, LawSummary>> _fetchCatalog() async {
-    final out = <String, LawSummary>{};
-    for (final q in scope.catalogQueries()) {
-      final rows = await _fetchAllPages(q, asOf: EgovRequests.farFutureAsOf);
-      // asof 付きの行に current_revision_info が無ければ、その行の revision_info は
-      // 未施行側なので現行として使えない。同じクエリを asof なしで取り直して現行を得る
-      final currentById = <String, Map<String, dynamic>>{};
-      if (rows.any((r) => r['current_revision_info'] is! Map)) {
-        for (final r in await _fetchAllPages(q, asOf: null)) {
-          currentById[_lawIdOf(r)] = r;
-        }
-      }
-      for (final row in rows) {
-        final s =
-            LawSummary.fromApiRow(row, currentRow: currentById[_lawIdOf(row)]);
-        if (scope.reasonFor(s) == null) continue;
-        out.putIfAbsent(s.lawId, () => s);
-      }
-    }
-    return out;
-  }
-
-  static String _lawIdOf(Map<String, dynamic> row) =>
-      (row['law_info'] as Map?)?['law_id'] as String? ?? '';
-
-  Future<List<Map<String, dynamic>>> _fetchAllPages(Map<String, String> q,
-      {required String? asOf}) async {
-    final rows = <Map<String, dynamic>>[];
-    var offset = 0;
-    while (true) {
-      final body =
-          await api.getJson(requests.laws(q, asOf: asOf, offset: offset));
-      final page = (body['laws'] as List? ?? const []);
-      rows.addAll(page.map((r) => (r as Map).cast<String, dynamic>()));
-      final next = body['next_offset'];
-      if (next is int && page.isNotEmpty && next > offset) {
-        offset = next;
-      } else {
-        return rows;
-      }
-    }
-  }
 
   Future<DateTime?> _metaDate(String key) async {
     final v = await db.getMeta(key);

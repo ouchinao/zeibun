@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zeibun/data/db/database.dart';
 import 'package:zeibun/data/egov/egov_api.dart';
@@ -44,6 +46,74 @@ void main() {
     final runs = await db.recentSyncRuns();
     expect(runs.single.status, 'success');
     expect(runs.single.lawsChecked, 12);
+  });
+
+  String snapshotOf(List<LawSummary> laws) => jsonEncode(
+      CatalogSnapshot(generatedAt: '2026-10-02T00:00:00Z', laws: laws)
+          .toJson());
+
+  LawSummary law(String id, String title) => LawSummary(
+      lawId: id,
+      lawNum: '',
+      lawType: 'Act',
+      title: title,
+      category: '国税',
+      currentRevisionId: '${id}_20260401_000000000000000');
+
+  SyncService withBundle(String Function() bundle) => SyncService(
+      api: api,
+      db: db,
+      clock: () => now,
+      loadBundledCatalog: () async => bundle());
+
+  test(
+      'on a device with no laws, the bundled list fills the catalog '
+      'even when e-Gov cannot be reached', () async {
+    api.offline = true;
+    final s = await withBundle(() => snapshotOf(
+            [law('340AC0000000034', '法人税法'), law('340AC0000000033', '所得税法')]))
+        .runOnLaunch();
+    expect(s, isA<SyncOffline>());
+    expect((await db.allLaws()).map((l) => l.title),
+        unorderedEquals(['法人税法', '所得税法']));
+  });
+
+  test('the bundled list is not read once the device has laws', () async {
+    api.onPath('/api/2/laws', catalogHandler());
+    await service().runOnLaunch();
+    var read = false;
+    await withBundle(() {
+      read = true;
+      return snapshotOf([law('X', '架空法')]);
+    }).refreshNow();
+    expect(read, isFalse);
+    expect(await db.getLaw('X'), isNull);
+  });
+
+  test(
+      'filling from the bundled list does not count as a sync, '
+      'so the next launch still fetches the latest list', () async {
+    api.offline = true;
+    final svc = withBundle(() => snapshotOf([law('340AC0000000034', '法人税法')]));
+    await svc.runOnLaunch();
+    api.offline = false;
+    api.onPath('/api/2/laws', catalogHandler());
+    expect(await svc.runOnLaunch(), isA<SyncSuccess>());
+  });
+
+  test('a broken bundled list does not stop fetching from e-Gov', () async {
+    api.onPath('/api/2/laws', catalogHandler());
+    expect(await withBundle(() => '{').runOnLaunch(), isA<SyncSuccess>());
+    expect((await db.allLaws()).length, 12);
+  });
+
+  test('e-Gov maintenance is reported as maintenance, not as a broken response',
+      () async {
+    api.onPath(
+        '/api/2/laws',
+        (u) => throw EgovApiException(EgovErrorKind.maintenance, u,
+            statusCode: 403));
+    expect(await service().runOnLaunch(), isA<SyncMaintenance>());
   });
 
   test('second launch within 10 minutes skips the catalog fetch', () async {

@@ -46,7 +46,9 @@ zeibun
 
 ## サポート URL
 
-https://github.com/ouchinao/zeibun/issues
+https://ouchinao.github.io/zeibun/support
+
+問い合わせの窓口（お問い合わせフォームと GitHub の Issues）と、よくある質問を載せたページ。Issues の URL を直接にしないのは、Apple の審査で「サポートの情報があるページではない」とされたため（ガイドライン 1.5、2026-10-01）。
 
 ## プライバシーポリシー URL
 

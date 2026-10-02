@@ -1,25 +1,27 @@
-# App Review への補足（下書き）
+# App Review への補足
 
-設計書 §13 Phase R の R9。App Store Connect の「App Review に関する情報 > メモ」に貼る。
+設計書 §13 Phase R の R9。App Store Connect の「App Review に関する情報 > メモ」に、下の英文をそのまま貼る。Apple から英語で求められた項目（2026-09-30 の 2.1 Information Needed）に沿っている。
 
 ---
 
-このアプリは、日本の税制法令（約 310 法令）を検索・閲覧するためのツールです。デジタル庁が提供する公開 API（e-Gov 法令API Version 2、https://laws.e-gov.go.jp/ ）から法令データを取得しています。政府の公式アプリではなく、その旨をアプリ内（初回起動時のダイアログ、ホーム画面の脚注、設定画面）とストアの説明文に明記しています。
+zeibun is a reference tool for reading Japanese tax laws (about 310 national and local tax laws and regulations). It is intended for tax accountants, accounting staff, students and individuals who need to check the current text of tax laws. The app only displays the text of the laws. It does not provide tax or legal advice, calculations, or filing services.
 
-ログインは不要で、テスト用アカウントはありません。起動すると自動で法令一覧を取得します。
+Problem it solves: the official e-Gov website is not designed for quickly looking up tax laws on a phone, does not work offline, and does not tell users when a law they read has been amended.
 
-公開データを表示するだけのアプリではなく、次の機能を端末側で実装しています。
+What the app adds on the device: on launch it checks for amendments and upcoming enforcement and marks the affected laws; laws that the user opens are saved on the device and can be read offline; the user can save all laws and run full-text search on the device; articles can be opened directly by number (for example "法法22" opens Article 22 of the Corporation Tax Act); laws and articles can be bookmarked.
 
-- 起動時に法令一覧を取り直して改正・施行予定を検知し、一覧に印を付ける
-- 開いた法令を端末に保存し、オフラインで閲覧する（機内モードで再起動しても読める）
-- 「設定 > 全法令を端末に保存」で全法令を保存し、SQLite FTS5 による横断全文検索を行う
-- 法令・条のブックマーク、本文内検索、条番号への直接ジャンプ
+How to access the main features (no login, setup or sample files are required):
+1. Launch the app and tap "確認しました" on the disclaimer dialog.
+2. Type "法法22" in the search field on the home screen. Article 22 of the Corporation Tax Act opens.
+3. Turn on Airplane Mode and relaunch the app. The same law can still be read.
+4. Type "損金の額" in the home search field and open the "本文" (full text) tab. Laws already opened are searched; Settings > "全法令を端末に保存" saves all laws for searching.
 
-確認手順の例:
+External services: the app uses a single external service, e-Gov Law API Version 2 (https://laws.e-gov.go.jp/), a public API provided by the Digital Agency of Japan, as the data source for the law texts. It uses no authentication service, payment processor, analytics SDK, advertising SDK or AI service, and it does not collect any personal data.
 
-1. 起動 → 「ご利用にあたって」で「確認しました」
-2. 検索窓に「法法22」と入力 → 法人税法第二十二条が開く
-3. 機内モードにして再起動 → 同じ法令が読める
-4. 設定 → 全法令を端末に保存 → 保存後、ホームの検索窓に「損金の額」と入れて「本文」タブ
+About e-Gov maintenance: e-Gov occasionally stops for maintenance (for example on October 1-2, 2026, which overlapped with a previous review). The app includes the list of tax laws at build time, so the list and law-name search work even while e-Gov is unavailable, and the app shows "e-Gov 法令検索がメンテナンス中..." (e-Gov is under maintenance) instead of a generic error. Law texts that have not been opened yet can be read once e-Gov is back. If you see the maintenance message, please wait a while and tap the banner at the top of the home screen to retry.
 
-通信先は laws.e-gov.go.jp のみです。個人情報の収集、分析 SDK、広告はありません。
+Regional differences: none. The app shows Japanese laws in Japanese and functions the same in all regions.
+
+Third-party material: the law texts are provided by the Government of Japan through the e-Gov Law API. Under Article 13 of the Japanese Copyright Act, statutes and regulations are not subject to copyright. The data is also published under the Public Data License (PDL 1.0, compatible with CC BY 4.0), which allows reuse on condition that the source is credited. The app credits the source ("出典: e-Gov法令検索") on the home screen and in Settings, and states in the first-launch dialog, in Settings and in the App Store description that it is not an official app of the Digital Agency or e-Gov.
+
+Support: https://ouchinao.github.io/zeibun/support
