@@ -81,6 +81,13 @@
 
 `app/pubspec.yaml` の `version` を `x.y.z+ビルド番号` の形で上げる。ビルド番号は前回より必ず大きくする（同じ番号は App Store Connect に捨てられる）。
 
+同じ PR で、アプリに同梱する法令一覧も作り直す。古いままでも同期で最新になるが、e-Gov に接続できない初回起動ではこの一覧がそのまま出るため。
+
+```sh
+cd ~/zeibun/app
+dart run tool/update_catalog_snapshot.dart   # assets/catalog_snapshot.json を書き換える
+```
+
 ```sh
 cd ~/zeibun
 git checkout main && git pull

@@ -1,7 +1,7 @@
 name: zeibun
 description: 税制法令を e-Gov 法令API v2 から最新化し、端末内で検索・閲覧する Flutter アプリ。
 publish_to: none
-version: 1.0.0+3
+version: 1.0.0+4
 
 environment:
   sdk: ^3.5.0
