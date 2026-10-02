@@ -19,6 +19,10 @@ class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
   static final Uri _egovUri = Uri.https('laws.e-gov.go.jp', '/');
+  static final Uri _supportUri =
+      Uri.https('ouchinao.github.io', '/zeibun/support');
+  static final Uri _privacyUri =
+      Uri.https('ouchinao.github.io', '/zeibun/privacy');
 
   static String _statusLabel(SyncRun r) => switch (r.statusKind) {
         SyncRunStatus.running => '実行中',
@@ -126,6 +130,19 @@ class SettingsPage extends ConsumerWidget {
             leading: const Icon(Icons.open_in_new),
             title: const Text('e-Gov法令検索を開く'),
             onTap: () => openExternal(context, _egovUri),
+          ),
+          ListTile(
+            leading: const Icon(Icons.help_outline),
+            title: const Text('サポート・お問い合わせ'),
+            onTap: () => openExternal(context, _supportUri),
+          ),
+          // アプリ内に全文を持たないのは、App Store Connect に登録した URL と
+          // 内容がずれないようにするため（ガイドライン 5.1.1(i) はアプリ内からの
+          // リンクを求めている）
+          ListTile(
+            leading: const Icon(Icons.privacy_tip_outlined),
+            title: const Text('プライバシーポリシー'),
+            onTap: () => openExternal(context, _privacyUri),
           ),
           ListTile(
             leading: const Icon(Icons.description_outlined),
