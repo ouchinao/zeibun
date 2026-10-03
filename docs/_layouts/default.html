@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+{%- comment -%}
+テーマ（Primer）の既定のレイアウトを使わないのは、ランドマークが無く、サイト名を
+存在しないトップページへの h1 リンクとして出し、見出しごとに英語の「Anchor」
+リンクを足すため。見た目はテーマの CSS をそのまま使う。
+{%- endcomment -%}
+<html lang="{{ site.lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  {% seo %}
+  <link rel="stylesheet" href="{{ '/assets/css/style.css?v=' | append: site.github.build_revision | relative_url }}">
+  <style>
+    .site-header { display: flex; flex-wrap: wrap; gap: 0 1.5em; align-items: center; }
+    .site-header ul { display: flex; flex-wrap: wrap; gap: 0 1.5em; list-style: none; margin: 0; padding: 0; }
+    .site-header a { display: inline-block; padding: 0.75em 0; }
+    .site-header a[aria-current="page"] { font-weight: 600; text-decoration: underline; }
+    .site-footer { color: #57606a; }
+    /* 色だけテーマから変えるのは、アプリのダークモードから開いたときに白い全面で
+       目がくらまないようにするため。コントラストは文字・リンクとも 4.5:1 以上 */
+    @media (prefers-color-scheme: dark) {
+      body { background-color: #0d1117; color: #e6edf3; }
+      a, .markdown-body a { color: #4493f8; }
+      .markdown-body h1, .markdown-body h2 { border-bottom-color: #3d444d; }
+      .markdown-body hr { background-color: #3d444d; }
+      .markdown-body code { background-color: #151b23; }
+      .markdown-body pre, .markdown-body .highlight pre { background-color: #151b23; color: #e6edf3; }
+      /* 色分けを残さないのは、テーマの色分けがライト用で暗い背景では読めない色を含むため */
+      .markdown-body .highlight span { color: inherit !important; }
+      .markdown-body table tr { background-color: transparent; border-top-color: #3d444d; }
+      .markdown-body table tr:nth-child(2n) { background-color: #151b23; }
+      .markdown-body table th, .markdown-body table td { border-color: #3d444d; }
+      .markdown-body blockquote { color: #9198a1; border-left-color: #3d444d; }
+      .border-top { border-top-color: #3d444d !important; }
+      .border-bottom { border-bottom-color: #3d444d !important; }
+      .site-footer { color: #9198a1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container-lg px-3 my-5">
+    <header class="site-header border-bottom pb-2 mb-4">
+      <nav aria-label="zeibun">
+        <ul>
+          <li><a href="{{ '/support' | relative_url }}"{% if page.url contains 'support' %} aria-current="page"{% endif %}>サポート</a></li>
+          <li><a href="{{ '/privacy' | relative_url }}"{% if page.url contains 'privacy' %} aria-current="page"{% endif %}>プライバシーポリシー</a></li>
+        </ul>
+      </nav>
+    </header>
+    <main class="markdown-body">
+      {{ content }}
+    </main>
+    <footer class="site-footer border-top mt-5 pt-3">
+      <p>&copy; 2026 ouchinao</p>
+    </footer>
+  </div>
+</body>
+</html>
