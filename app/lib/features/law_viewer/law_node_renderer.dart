@@ -26,7 +26,7 @@ class LawNodeRenderer extends StatelessWidget {
 
   /// 読み上げの単位（項・号・見出しなど、VoiceOver がフォーカスする節点）ごとに
   /// 付ける操作。条を囲む節点だけに付けないのは、iOS の VoiceOver がその節点を
-  /// フォーカスせず、操作が一覧に出ないため（#44）。
+  /// フォーカスせず、操作が一覧に出ないため。
   final Map<CustomSemanticsAction, VoidCallback> semanticsActions;
 
   /// [semanticsActions] と同じ節点に付ける読み上げのヒント。

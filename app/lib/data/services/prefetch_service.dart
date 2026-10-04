@@ -83,7 +83,7 @@ class PrefetchService {
   final int maxConsecutiveOfflineFailures;
 
   /// 実行中だけ画面の消灯を止める。保存は前面にある間しか進まず、消灯して背景に
-  /// 回ると通信失敗が続いて「通信できないため中断」で終わるため（Issue #13）。
+  /// 回ると通信失敗が続いて「通信できないため中断」で終わるため。
   /// プラグインを直接呼ばず注入にしているのは、このクラスを Flutter に依存しない
   /// 純 Dart のままテストするため。
   final Future<void> Function(bool on)? keepScreenOn;
