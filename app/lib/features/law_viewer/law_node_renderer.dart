@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:zeibun_core/zeibun_core.dart';
 
 import '../../util/highlight.dart';
@@ -12,27 +13,72 @@ import '../../util/highlight.dart';
 /// と括弧書きにするのは、`Text.rich` にルビが無く `WidgetSpan` で組むと行間が
 /// 崩れるから。未知のタグは子要素をそのまま描くだけで例外にしない。
 class LawNodeRenderer extends StatelessWidget {
-  const LawNodeRenderer(this.node, {super.key, this.highlight = const []});
+  const LawNodeRenderer(this.node,
+      {super.key,
+      this.highlight = const [],
+      this.semanticsActions = const {},
+      this.semanticsHint});
 
   final LawNode node;
 
   /// 本文内検索のハイライト語（幅正規化済み、小文字）。
   final List<String> highlight;
 
+  /// 読み上げの単位（項・号・見出しなど、VoiceOver がフォーカスする節点）ごとに
+  /// 付ける操作。条を囲む節点だけに付けないのは、iOS の VoiceOver がその節点を
+  /// フォーカスせず、操作が一覧に出ないため。
+  final Map<CustomSemanticsAction, VoidCallback> semanticsActions;
+
+  /// [semanticsActions] と同じ節点に付ける読み上げのヒント。
+  final String? semanticsHint;
+
   @override
   Widget build(BuildContext context) =>
-      _Renderer(context, highlight).block(node);
+      _Renderer(context, highlight, semanticsActions, semanticsHint)
+          .block(node);
 }
 
 class _Renderer {
-  _Renderer(this.context, this.highlight)
+  _Renderer(this.context, this.highlight, this.actions, this.hint)
       : base = Theme.of(context).textTheme.bodyLarge!.copyWith(height: 1.7),
         scheme = Theme.of(context).colorScheme;
 
   final BuildContext context;
   final List<String> highlight;
+  final Map<CustomSemanticsAction, VoidCallback> actions;
+  final String? hint;
   final TextStyle base;
   final ColorScheme scheme;
+
+  /// [_unit] の入れ子の深さ。
+  int _unitDepth = 0;
+
+  /// 読み上げの 1 単位を作り、[actions] と [hint] を付ける。
+  ///
+  /// [ownNode] は `MergeSemantics` の直下で、外側の単位の中でも別の節点になる
+  /// とき（項の中の号、表のセル）に true にする。それ以外で入れ子の内側に付けない
+  /// のは、外側の単位に 1 つにまとめられ、ヒントが重ねて読まれるため。
+  Widget _unit(Widget Function() build,
+      {bool header = false, bool ownNode = false}) {
+    if (actions.isEmpty || (_unitDepth > 0 && !ownNode)) {
+      final child = build();
+      return header ? Semantics(header: true, child: child) : child;
+    }
+    final saved = _unitDepth;
+    _unitDepth = 1;
+    final Widget child;
+    try {
+      child = build();
+    } finally {
+      _unitDepth = saved;
+    }
+    return Semantics(
+      header: header ? true : null,
+      hint: hint,
+      customSemanticsActions: actions,
+      child: child,
+    );
+  }
 
   /// `*Sentence` を列挙しないのは、Subitem1〜10Sentence のように規則的な名前が
   /// 多く、列挙すると漏れが出るため。ここは接尾辞で拾えないものだけ。
@@ -74,8 +120,8 @@ class _Renderer {
       case 'Fig':
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Text('［図・画像は e-Gov で参照してください］',
-              style: base.copyWith(color: scheme.onSurfaceVariant)),
+          child: _unit(() => Text('［図・画像は e-Gov で参照してください］',
+              style: base.copyWith(color: scheme.onSurfaceVariant))),
         );
       case 'Remarks':
       case 'Note':
@@ -97,8 +143,8 @@ class _Renderer {
             n.tag == 'RelatedArticleNum') {
           return Padding(
             padding: const EdgeInsets.only(top: 6, bottom: 2),
-            child:
-                Text(n.text, style: base.copyWith(fontWeight: FontWeight.w600)),
+            child: _unit(() => Text(n.text,
+                style: base.copyWith(fontWeight: FontWeight.w600))),
           );
         }
         if (n.tag == 'Rt') return const SizedBox.shrink();
@@ -146,17 +192,18 @@ class _Renderer {
         // 条見出しを見出しとして読ませるのは、長い法令でも読み上げの
         // 「見出しへ移動」で条から条へ飛べるようにするため
         if (caption != null && caption.isNotEmpty)
-          Semantics(
-              header: true,
-              child: Text(caption,
-                  style: base.copyWith(color: scheme.onSurfaceVariant))),
+          _unit(
+              () => Text(caption,
+                  style: base.copyWith(color: scheme.onSurfaceVariant)),
+              header: true),
         for (var i = 0; i < rest.length; i++)
           if (i == 0 && rest[i].tag == 'Paragraph')
             _paragraph(rest[i], leadingTitle: title)
           else
             block(rest[i]),
         if (rest.isEmpty && title != null)
-          Text(title, style: base.copyWith(fontWeight: FontWeight.bold)),
+          _unit(() =>
+              Text(title, style: base.copyWith(fontWeight: FontWeight.bold))),
       ],
     );
   }
@@ -184,28 +231,35 @@ class _Renderer {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (caption != null && caption.isNotEmpty)
-            Text(caption, style: base.copyWith(color: scheme.onSurfaceVariant)),
+            _unit(() => Text(caption,
+                style: base.copyWith(color: scheme.onSurfaceVariant))),
           // 番号と本文を別々の読み上げ単位にしないのは、「２」「…の場合には」と切れて読まれるため
           MergeSemantics(
-              child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (leadingTitle == null)
-                _number(num, base.copyWith(fontWeight: FontWeight.w600)),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (var i = 0; i < body.length; i++)
-                      if (i == 0 && lead != null && leadingTitle != null)
-                        _inlineText(body[i], prefix: '$lead　', prefixBold: true)
-                      else
-                        block(body[i]),
-                  ],
-                ),
-              ),
-            ],
-          )),
+              child: _unit(
+                  ownNode: true,
+                  () => Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (leadingTitle == null)
+                            _number(num,
+                                base.copyWith(fontWeight: FontWeight.w600)),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                for (var i = 0; i < body.length; i++)
+                                  if (i == 0 &&
+                                      lead != null &&
+                                      leadingTitle != null)
+                                    _inlineText(body[i],
+                                        prefix: '$lead　', prefixBold: true)
+                                  else
+                                    block(body[i]),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ))),
         ],
       ),
     );
@@ -218,18 +272,20 @@ class _Renderer {
     return Padding(
       padding: EdgeInsets.only(left: 12.0 * indent, top: 2),
       child: MergeSemantics(
-          child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _number(title, base),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [for (final b in body) block(b)],
-            ),
-          ),
-        ],
-      )),
+          child: _unit(
+              ownNode: true,
+              () => Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _number(title, base),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [for (final b in body) block(b)],
+                        ),
+                      ),
+                    ],
+                  ))),
     );
   }
 
@@ -242,7 +298,8 @@ class _Renderer {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (title != null && title.isNotEmpty)
-            Text(title, style: base.copyWith(fontWeight: FontWeight.w600)),
+            _unit(() =>
+                Text(title, style: base.copyWith(fontWeight: FontWeight.w600))),
           if (table != null) _table(table),
           for (final e in n.elements)
             if (e.tag != 'TableStructTitle' && e.tag != 'Table') block(e),
@@ -281,13 +338,15 @@ class _Renderer {
                 for (final (c, cell) in cols.indexed)
                   // セルの文字だけを読ませないのは、耳では列見出しとの対応が分からないため
                   MergeSemantics(
-                    child: Semantics(
-                      label: position(r, c),
-                      child: Padding(
-                        padding: const EdgeInsets.all(6),
-                        child: _children(cell),
-                      ),
-                    ),
+                    child: _unit(
+                        ownNode: true,
+                        () => Semantics(
+                              label: position(r, c),
+                              child: Padding(
+                                padding: const EdgeInsets.all(6),
+                                child: _children(cell),
+                              ),
+                            )),
                   ),
                 for (var i = cols.length; i < maxCols; i++)
                   const SizedBox.shrink(),
@@ -305,18 +364,18 @@ class _Renderer {
     final text = buf.toString();
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
-      child: Text.rich(
-        TextSpan(children: [
-          if (prefix != null)
-            TextSpan(
-                text: prefix,
-                style: prefixBold
-                    ? base.copyWith(fontWeight: FontWeight.bold)
-                    : base),
-          ...highlightSpans(text, highlight, style: highlightStyle(scheme)),
-        ]),
-        style: base,
-      ),
+      child: _unit(() => Text.rich(
+            TextSpan(children: [
+              if (prefix != null)
+                TextSpan(
+                    text: prefix,
+                    style: prefixBold
+                        ? base.copyWith(fontWeight: FontWeight.bold)
+                        : base),
+              ...highlightSpans(text, highlight, style: highlightStyle(scheme)),
+            ]),
+            style: base,
+          )),
     );
   }
 

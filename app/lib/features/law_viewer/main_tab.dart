@@ -219,22 +219,26 @@ class _ArticleCard extends StatelessWidget {
   /// 仮想条で null にするのは、条番号が無く再訪先を指せないため（長押しメニューと同じ）。
   final VoidCallback? onToggleBookmark;
 
-  static const _bookmarkAction = CustomSemanticsAction(label: 'ブックマークに追加・外す');
+  /// onLongPressHint にしないのは、iOS では無視されるため。
+  static const _longPressHint = '長押しでメニューを開きます';
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     // ボタンを足さずに読み上げの操作一覧に出すのは、見た目を変えないため。
-    // 長押しだけではスクリーンリーダーの利用者にメニューの存在が伝わらない
+    // 長押しだけではスクリーンリーダーの利用者にメニューの存在が伝わらない。
+    // 操作の名前を「ブックマークに追加・外す」だけにしないのは、項や号に
+    // フォーカスしているとき、どの条をブックマークするのか分からないため
+    final actions = {
+      if (onToggleBookmark case final toggle?)
+        CustomSemanticsAction(
+            label: '${article.articleTitle ?? ''}をブックマークに追加・外す'): toggle,
+    };
     return Semantics(
-      // 条の名前を付けるのは、読み上げでブックマークの操作がどの条のものか
-      // 分かるようにするため（付けないと中の章見出しなどの名前を借りてしまう）
+      // 条の名前を省かないのは、中の章見出しなどの名前を借りてしまうため。
+      // 操作とヒントをここに付けないのは、項・号ごとの節点と重なり、読み上げで
+      // 条の名前と操作が二重に出るため
       label: [article.articleTitle, article.caption].nonNulls.join(),
-      // onLongPressHint にしないのは、iOS では無視されるため
-      hint: '長押しでメニューを開きます',
-      customSemanticsActions: {
-        if (onToggleBookmark case final toggle?) _bookmarkAction: toggle,
-      },
       child: InkWell(
         onLongPress: onLongPress,
         child: Padding(
@@ -250,8 +254,15 @@ class _ArticleCard extends StatelessWidget {
                           color: theme.colorScheme.onSurfaceVariant))),
             if (article.section == ArticleSection.appdx &&
                 article.articleTitle != null)
-              Text(article.articleTitle!, style: theme.textTheme.titleMedium),
-            LawNodeRenderer(article.body, highlight: highlight),
+              Semantics(
+                  hint: _longPressHint,
+                  customSemanticsActions: actions,
+                  child: Text(article.articleTitle!,
+                      style: theme.textTheme.titleMedium)),
+            LawNodeRenderer(article.body,
+                highlight: highlight,
+                semanticsActions: actions,
+                semanticsHint: _longPressHint),
           ]),
         ),
       ),

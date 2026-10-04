@@ -172,32 +172,62 @@ void main() {
     expect(exceptions(tester), isEmpty);
   });
 
+  CustomSemanticsAction? bookmarkActionOf(SemanticsNode node) => node
+      .getSemanticsData()
+      .customSemanticsActionIds
+      ?.map(CustomSemanticsAction.getAction)
+      .where((a) => a?.label?.endsWith('をブックマークに追加・外す') ?? false)
+      .firstOrNull;
+
+  testWidgets(
+      'every part of an article that a screen reader focuses offers the '
+      'bookmark action named after the article', (tester) async {
+    final handle = tester.ensureSemantics();
+    await open(tester, '/law/426AC0000000011/article/2');
+    SemanticsNode? article =
+        tester.getSemantics(find.textContaining('第二条').first);
+    while (article != null &&
+        !(article.label.startsWith('第二条') && article.childrenCount > 0)) {
+      article = article.parent;
+    }
+    expect(article, isNotNull, reason: '条を囲む節点が見つからない');
+    final focusable = <SemanticsNode>[];
+    void visit(SemanticsNode n) {
+      if (n.childrenCount == 0) {
+        if (n.label.isNotEmpty) focusable.add(n);
+        return;
+      }
+      n.visitChildren((c) {
+        visit(c);
+        return true;
+      });
+    }
+
+    visit(article!);
+    expect(focusable.length, greaterThan(1), reason: '項・号ごとに読まれること');
+    for (final n in focusable) {
+      expect(bookmarkActionOf(n)?.label, '第二条をブックマークに追加・外す',
+          reason: '「${n.label}」に操作が無い');
+    }
+    handle.dispose();
+  });
+
   testWidgets(
       'a screen reader can bookmark an article from its actions, '
       'without the long-press menu, once even if triggered twice',
       (tester) async {
     final handle = tester.ensureSemantics();
     await open(tester, '/law/426AC0000000011');
-    final article = find.textContaining('第一条').first;
-    // 条の本文は項ごとに読まれるので、アクションはその親（条）の節点にある
-    SemanticsNode? node = tester.getSemantics(article);
-    CustomSemanticsAction? action;
-    while (node != null && action == null) {
-      action = node
-          .getSemanticsData()
-          .customSemanticsActionIds
-          ?.map(CustomSemanticsAction.getAction)
-          .where((a) => a?.label == 'ブックマークに追加・外す')
-          .firstOrNull;
-      if (action == null) node = node.parent;
-    }
+    // VoiceOver がフォーカスするのは項ごとの本文なので、その節点で操作する
+    final node = tester.getSemantics(find.textContaining('第一条').first);
+    final action = bookmarkActionOf(node);
     expect(action, isNotNull);
 // 続けて 2 回実行しても、追加と解除が続けて走って元に戻らないこと
     for (var i = 0; i < 2; i++) {
       tester.binding.performSemanticsAction(SemanticsActionEvent(
           type: SemanticsAction.customAction,
           viewId: tester.view.viewId,
-          nodeId: node!.id,
+          nodeId: node.id,
           arguments: CustomSemanticsAction.getIdentifier(action!)));
     }
     await pumpAWhile(tester);
