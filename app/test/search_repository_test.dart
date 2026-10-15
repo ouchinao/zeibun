@@ -113,4 +113,33 @@ void main() {
       expect((await search.searchFullText('"課税')).hits, isEmpty);
     });
   });
+
+  group('full-text search with practitioner words', () {
+    const chihou = '426AC0000000011'; // 地方法人税法
+
+    setUp(() async {
+      // 本文に「適格請求書」「賞与」を足す。実本文のフィクスチャには無い語のため
+      final base = lawDataHandler();
+      final api = FakeEgovApi()
+        ..onPathPrefix('/api/2/law_data/',
+            (uri) => base(uri).replaceFirst('この法律は', '適格請求書と賞与について、この法律は'));
+      await LawRepository(api: api, db: db).openLaw(chihou);
+    });
+
+    test('a practitioner word finds the article that uses the statute word',
+        () async {
+      final r = await search.searchFullText('インボイス');
+      expect(r.hits, isNotEmpty);
+      expect(r.hits.first.snippet, contains('適格請求書'));
+      expect(r.query.highlightTerms, contains('適格請求書'));
+    });
+
+    test(
+        'a short statute word found through LIKE still gives a snippet '
+        'around it', () async {
+      final r = await search.searchFullText('ボーナス');
+      expect(r.hits, isNotEmpty);
+      expect(r.hits.first.snippet, contains('賞与'));
+    });
+  });
 }

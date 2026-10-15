@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:zeibun_core/zeibun_core.dart';
 
 import '../../data/db/database.dart';
 import '../../data/repositories/search_repository.dart';
@@ -51,7 +52,7 @@ class _FullTextResultsState extends ConsumerState<FullTextResults> {
                   itemCount: r.hits.length,
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (context, i) =>
-                      _HitTile(r.hits[i], terms: r.query.terms),
+                      _HitTile(r.hits[i], query: r.query),
                 ),
         ),
       ),
@@ -106,9 +107,9 @@ class _Filters extends StatelessWidget {
 }
 
 class _HitTile extends StatelessWidget {
-  const _HitTile(this.hit, {required this.terms});
+  const _HitTile(this.hit, {required this.query});
   final FullTextHit hit;
-  final List<String> terms;
+  final FtsQuery query;
 
   @override
   Widget build(BuildContext context) {
@@ -123,13 +124,15 @@ class _HitTile extends StatelessWidget {
       title: Text(where, maxLines: 2, overflow: TextOverflow.ellipsis),
       subtitle: Text.rich(
         TextSpan(
-            children: highlightSpans(hit.snippet, terms,
+            children: highlightSpans(hit.snippet, query.highlightTerms,
                 style: highlightStyle(theme.colorScheme))),
         maxLines: 3,
         overflow: TextOverflow.ellipsis,
       ),
       isThreeLine: true,
-      onTap: () => context.push(_locationOf(hit, terms)),
+      // 言い換えの語まで渡さないのは、本文内検索が同じ言い換えをかけ直すため、
+      // 渡すと言い換えの語どうしが AND で絞られ、一致が見つからなくなるため
+      onTap: () => context.push(_locationOf(hit, query.terms)),
     );
   }
 }

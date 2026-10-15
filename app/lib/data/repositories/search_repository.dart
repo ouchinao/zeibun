@@ -48,6 +48,11 @@ class SearchRepository {
     return FullTextResult(q, hits, laws);
   }
 
+  /// 検索語に合うテーマ（よく参照する条の案内）。画面が `zeibun_core` の索引を
+  /// 直接引かないのは、法令名や本文の検索と同じく、どこから引くかを画面に
+  /// 持ち込まないため。
+  List<Topic> topics(String input) => topicsFor(input);
+
   /// 入力を解釈して検索する。
   /// 1. 条番号を含めば「法令 + 条」のジャンプ候補
   /// 2. それ以外は法令名・略称・読みの部分一致

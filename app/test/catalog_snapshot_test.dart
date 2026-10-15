@@ -22,6 +22,21 @@ void main() {
     expect(snap.laws.where((l) => l.currentRevisionId == null), isEmpty);
   });
 
+  test(
+      'every law the topic index points to is in the list, current, '
+      'and under the same title', () {
+    final byId = {for (final l in snap.laws) l.lawId: l};
+    for (final topic in builtInTopics) {
+      for (final a in topic.articles) {
+        final law = byId[a.lawId];
+        expect(law, isNotNull, reason: '${topic.name}: ${a.lawTitle} が一覧に無い');
+        expect(law!.title, a.lawTitle);
+        expect(law.repealStatus, RepealStatus.none,
+            reason: '${a.lawTitle} が廃止');
+      }
+    }
+  });
+
   test('a law survives the round trip through the bundled format', () {
     final law = snap.laws.firstWhere((l) => l.title == '法人税法');
     final back = LawSummary.fromJson(law.toJson());

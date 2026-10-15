@@ -7,6 +7,7 @@ import '../../providers.dart';
 import '../../util/tab_label.dart';
 import '../law_list/law_tile.dart';
 import 'full_text_results.dart';
+import 'topic_section.dart';
 
 /// autoDispose にし、`searchRepositoryProvider` 経由で一覧の変化を追う。
 /// keep-alive だと同期前に検索した語が空のまま固定される。
@@ -80,34 +81,32 @@ class _LawResults extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final topics = ref.watch(searchRepositoryProvider).topics(query);
     final results = ref.watch(_lawSearchProvider(query));
     return results.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('検索エラー: $e')),
       data: (hits) {
-        if (hits.isEmpty) return _NoLawHits(query: query);
-        final jump = hits.first.article;
-        return ListView.builder(
-          itemCount: hits.length + (jump != null ? 1 : 0),
-          itemBuilder: (context, i) {
-            if (jump != null && i == 0) {
-              return ListTile(
-                leading: const Icon(Icons.subdirectory_arrow_right),
-                title: Text('${jump.display} へジャンプ'),
-                subtitle: Text('法令を選んでください（候補 ${hits.length} 件）'),
-              );
-            }
-            final hit = hits[jump != null ? i - 1 : i];
-            final art = hit.article;
-            return LawTile(
+        if (hits.isEmpty && topics.isEmpty) return _NoLawHits(query: query);
+        final jump = hits.firstOrNull?.article;
+        return ListView(children: [
+          if (topics.isNotEmpty) TopicSection(topics: topics),
+          if (jump != null)
+            ListTile(
+              leading: const Icon(Icons.subdirectory_arrow_right),
+              title: Text('${jump.display} へジャンプ'),
+              subtitle: Text('法令を選んでください（候補 ${hits.length} 件）'),
+            ),
+          for (final hit in hits)
+            LawTile(
               law: hit.law,
-              subtitleSuffix: art?.display,
-              onTap: () => context.push(art == null
-                  ? '/law/${hit.law.lawId}'
-                  : '/law/${hit.law.lawId}/article/${art.articleNum}'),
-            );
-          },
-        );
+              subtitleSuffix: hit.article?.display,
+              onTap: () => context.push(switch (hit.article) {
+                null => '/law/${hit.law.lawId}',
+                final art => '/law/${hit.law.lawId}/article/${art.articleNum}',
+              }),
+            ),
+        ]);
       },
     );
   }
