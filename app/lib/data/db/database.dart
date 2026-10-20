@@ -279,7 +279,7 @@ class _FullTextFilter {
 _FullTextFilter? _fullTextFilter(FtsQuery q,
     {required bool includeSuppl, String? lawId}) {
   final match = q.matchExpression;
-  final like = q.likePatterns;
+  final like = q.likePatternGroups;
   if (match == null && like.isEmpty) return null;
   final where = <String>[];
   final args = <Variable>[];
@@ -287,9 +287,12 @@ _FullTextFilter? _fullTextFilter(FtsQuery q,
     where.add('articles_fts MATCH ?');
     args.add(Variable(match));
   }
-  for (final p in like) {
-    where.add('a.plain_text LIKE ?');
-    args.add(Variable(p));
+  // 組の中を AND にしないのは、言い換えの語は同じ意味で、どれか 1 つが本文に
+  // あれば足りるため
+  for (final group in like) {
+    where.add(
+        '(${List.filled(group.length, 'a.plain_text LIKE ?').join(' OR ')})');
+    args.addAll(group.map(Variable.new));
   }
   if (!includeSuppl) {
     where.add("a.section != '${ArticleSection.suppl.dbValue}'");
@@ -305,6 +308,19 @@ _FullTextFilter? _fullTextFilter(FtsQuery q,
     where.join(' AND '),
     args,
     usesIndex: match != null,
+  );
+}
+
+/// 索引を使わないときの抜粋。言い換えの語のうち本文にあるものの位置から切り出す。
+/// 入力した語だけで位置を探さないのは、本文に無ければ `instr` が 0 になり、
+/// 一致箇所の無い冒頭が抜粋になるため。
+(String, List<Variable>) _likeSnippet(List<String> group) {
+  final positions =
+      List.filled(group.length, 'instr(a.plain_text, ?)').join(', ');
+  final pos = group.length == 1 ? positions : 'max($positions)';
+  return (
+    'substr(a.plain_text, max($pos - 20, 1), 80)',
+    [for (final t in group) Variable(t)]
   );
 }
 
@@ -635,10 +651,7 @@ class AppDatabase extends _$AppDatabase {
     if (f == null) return const [];
     final (snippet, snippetArgs) = f.usesIndex
         ? ("snippet(articles_fts, 0, '', '', '…', 24)", const <Variable>[])
-        : (
-            'substr(a.plain_text, max(instr(a.plain_text, ?) - 20, 1), 80)',
-            [Variable(q.likeTerms.first)]
-          );
+        : _likeSnippet(q.likeGroups.first);
     final order = f.usesIndex
         ? 'bm25(articles_fts, 1.0, 3.0, 3.0), a.seq'
         : 'a.law_id, a.seq';

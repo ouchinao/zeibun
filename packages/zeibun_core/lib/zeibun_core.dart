@@ -4,7 +4,7 @@
 /// - `catalog/`: `/laws` の行モデル、公式の分類コード表、対象法令スコープ
 /// - `sync/`: 起動時同期の差分判定（設計書 §4.2 ステップ 3）
 /// - `api/`: e-Gov 法令API v2 のリクエスト組み立てと `/law_data` 封筒の検証
-/// - `text/`: 検索用の正規化、条番号の解釈、略称辞書
+/// - `text/`: 検索用の正規化、条番号の解釈、略称辞書、言い換え辞書とテーマの索引
 ///
 /// `dart:io` と Flutter に依存しない。HTTP と SQLite の実体はアプリ側が持つ。
 library;
@@ -22,3 +22,5 @@ export 'src/sync/catalog_diff.dart';
 export 'src/text/fts_query.dart';
 export 'src/text/law_abbrev.dart';
 export 'src/text/normalize.dart';
+export 'src/text/search_synonyms.dart';
+export 'src/text/topic_index.dart';
