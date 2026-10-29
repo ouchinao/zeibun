@@ -83,4 +83,16 @@ void main() {
         InTextSearch.run(text, 'ない語', includeSuppl: true).announcement, '一致なし');
     expect(const InTextSearch().announcement, isNull);
   });
+
+  test(
+      'a practitioner word finds the article that uses the statute word, '
+      'and both words are highlighted', () {
+    final t = LawText.from(BodyLoadResult(BodyStatus.fresh, [
+      _article(1, 'main', '適格請求書発行事業者の義務'),
+      _article(2, 'main', '仕入れに係る消費税額'),
+    ]));
+    final s = InTextSearch.run(t, 'インボイス', includeSuppl: false);
+    expect(s.hits, [(part: TextPart.main, group: 0, index: 0)]);
+    expect(s.terms, ['インボイス', '適格請求書']);
+  });
 }

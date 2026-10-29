@@ -54,9 +54,15 @@ class InTextSearch {
     required bool includeSuppl,
     int startAt = 0,
   }) {
-    final terms = splitSearchTerms(query);
-    bool matches(ArticleItem a) =>
-        terms.every(normalizeForMatch(a.plainText).contains);
+    // 語をそのまま照らし合わせないのは、横断検索が言い換えで見つけた条を開いたとき、
+    // 本文内で一致が見つからなくなるため
+    final groups = expandSearchTerms(query);
+    bool matches(ArticleItem a) {
+      final text = normalizeForMatch(a.plainText);
+      return groups.every((g) => g.any(text.contains));
+    }
+
+    final terms = {for (final g in groups) ...g}.toList();
     final hits = <TextHit>[
       if (terms.isNotEmpty) ...[
         for (var i = 0; i < text.main.length; i++)
