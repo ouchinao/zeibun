@@ -1,0 +1,63 @@
+name: Vulnerability check
+
+# 依存パッケージと、ビルドに使う Flutter / Dart の SDK を、既知の脆弱性と照らし合わせる
+# （設計書 §11 E 供給網）。CI のワークフローに混ぜないのは、コードを変えていなくても
+# 新しい脆弱性が公開されるので、週ごとにも回したいため。
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 0 * * 1" # 毎週月曜 9:17（日本時間）
+  workflow_dispatch:
+
+concurrency:
+  group: vulncheck-${{ github.ref }}
+  cancel-in-progress: true
+
+# 書き込みの権限を渡さないのは、このトークンを外部の道具に渡すため
+permissions:
+  contents: read
+
+jobs:
+  dartvulncheck:
+    name: dependencies and SDK (dartvulncheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+        working-directory: app
+      # pub get を省かないのは、コアは pubspec.lock をコミットしておらず、照合する版が
+      # 決まらないため
+      - run: dart pub get
+        working-directory: packages/zeibun_core
+      # pub.dev の版で入れないのは、中身を確かめておらず、トークンの送り先を確かめた
+      # ソースと同じとは限らないため。確かめたコミットを指定して入れる
+      - name: install dartvulncheck 0.2.2
+        run: >-
+          dart pub global activate --source git
+          https://github.com/ouchinao/dartvulncheck
+          --git-ref a78586aa579f9caeab351fc9c4875bf4b0db6e40
+      # spike を入れないのは、Phase 0 の調査用ツールでアプリに含まれないため。
+      # 終了コードをそのまま返すだけにしないのは、「脆弱性が見つかった」と「GitHub や
+      # OSV.dev に届かず確認できなかった」が、どちらも同じ赤い × に見えるため
+      - name: check (exit 3 = vulnerabilities found, 1 = could not check)
+        run: |
+          set +e
+          dart pub global run dartvulncheck app packages/zeibun_core
+          code=$?
+          case $code in
+            0) ;;
+            3) echo "::error::既知の脆弱性が見つかった。上の一覧の版に上げるか、影響が無いことを確かめて pubspec.yaml の ignored_advisories に足す" ;;
+            1) echo "::error::脆弱性を確認できなかった（GitHub か OSV.dev に届かない、またはトークンの問題）。時間をおいて再実行する" ;;
+            *) echo "::error::dartvulncheck が想定外の終了コード $code で終わった" ;;
+          esac
+          exit $code
+        env:
+          # トークンを省かないのは、無いと GitHub の API が 1 時間 60 回に絞られ、
+          # リポジトリのセキュリティアドバイザリも見られないため
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
