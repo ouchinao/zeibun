@@ -60,4 +60,14 @@ void main() {
     expect(find.textContaining('同期状態を確認してください'), findsOneWidget);
     expect(find.text('本文タブを開く'), findsNothing);
   });
+
+  testWidgets(
+      'a practitioner word with no law title shows the topic and the articles '
+      'often referred to', (tester) async {
+    await pumpPage(tester, 'インボイス');
+    expect(find.text('テーマ「インボイス（適格請求書）」でよく参照する条'), findsOneWidget);
+    expect(find.text('消費税法 第五十七条の二'), findsOneWidget);
+    expect(find.text('適格請求書発行事業者の登録等'), findsOneWidget);
+    expect(find.textContaining('同期状態'), findsNothing);
+  });
 }
