@@ -12,21 +12,27 @@ class AppSettings {
     this.prefetchEnabled = false,
     this.skipRecentSync = true,
     this.disclaimerShown = false,
+    this.collapseParens = false,
   });
 
   final bool prefetchEnabled;
   final bool skipRecentSync;
   final bool disclaimerShown;
 
+  /// 本文の括弧書きを「（…）」に畳んで表示する。
+  final bool collapseParens;
+
   AppSettings copyWith({
     bool? prefetchEnabled,
     bool? skipRecentSync,
     bool? disclaimerShown,
+    bool? collapseParens,
   }) =>
       AppSettings(
         prefetchEnabled: prefetchEnabled ?? this.prefetchEnabled,
         skipRecentSync: skipRecentSync ?? this.skipRecentSync,
         disclaimerShown: disclaimerShown ?? this.disclaimerShown,
+        collapseParens: collapseParens ?? this.collapseParens,
       );
 }
 
@@ -34,6 +40,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
   static const _kPrefetch = 'prefetch_enabled';
   static const _kSkipRecent = 'skip_recent_sync';
   static const _kDisclaimer = 'disclaimer_shown_v1';
+  static const _kCollapseParens = 'collapse_parens';
 
   SharedPreferences get _prefs => ref.read(sharedPreferencesProvider);
 
@@ -42,6 +49,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
         prefetchEnabled: _prefs.getBool(_kPrefetch) ?? false,
         skipRecentSync: _prefs.getBool(_kSkipRecent) ?? true,
         disclaimerShown: _prefs.getBool(_kDisclaimer) ?? false,
+        collapseParens: _prefs.getBool(_kCollapseParens) ?? false,
       );
 
   Future<void> setPrefetch(bool v) {
@@ -52,6 +60,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
   Future<void> setSkipRecentSync(bool v) {
     state = state.copyWith(skipRecentSync: v);
     return _prefs.setBool(_kSkipRecent, v);
+  }
+
+  Future<void> setCollapseParens(bool v) {
+    state = state.copyWith(collapseParens: v);
+    return _prefs.setBool(_kCollapseParens, v);
   }
 
   Future<void> markDisclaimerShown() {
