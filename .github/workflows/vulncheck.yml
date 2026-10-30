@@ -37,11 +37,11 @@ jobs:
         working-directory: packages/zeibun_core
       # pub.dev の版で入れないのは、中身を確かめておらず、トークンの送り先を確かめた
       # ソースと同じとは限らないため。確かめたコミットを指定して入れる
-      - name: install dartvulncheck 0.2.2
+      - name: install dartvulncheck 0.3.0
         run: >-
           dart pub global activate --source git
           https://github.com/ouchinao/dartvulncheck
-          --git-ref a78586aa579f9caeab351fc9c4875bf4b0db6e40
+          --git-ref d2b7feaf81ae47eeadc40991db6ca58f53f0f4f1
       # spike を入れないのは、Phase 0 の調査用ツールでアプリに含まれないため。
       # 終了コードをそのまま返すだけにしないのは、「脆弱性が見つかった」と「GitHub や
       # OSV.dev に届かず確認できなかった」が、どちらも同じ赤い × に見えるため
