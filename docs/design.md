@@ -462,7 +462,7 @@ zeibun/
 | E | `/keyword` の `text` に含まれる HTML タグ（`<span>` など）の解釈 | 表示崩れ・将来 WebView を使えば XSS | WebView を使わない。タグは受信直後に除去してハイライト範囲だけを保持。表示は `Text`/`RichText` | Phase 3 |
 | E | 外部 URL の起動（「e-Gov で開く」、設定のサポート・プライバシーポリシー、v1.x の読み物） | 任意スキームの起動 | 起動先は許可リスト（`https://laws.e-gov.go.jp/`、`https://ouchinao.github.io/zeibun/`）配下に固定し、`law_id` は検証済みの値のみ埋め込む。読み物内のアフィリエイトリンクはブラウザ側で開くので、アプリは追わない | MVP |
 | E | 過剰な OS 権限 | 権限悪用の面積 | 要求する権限はネットワークのみ。ストレージ・連絡先・位置情報は要求しない | MVP |
-| E | 依存パッケージの侵害（供給網） | 任意コード | 依存は少数（dio, drift, xml, riverpod, go_router, freezed）。`pubspec.lock` をコミットし、Dependabot と `dart pub outdated` を CI に入れる。`flutter pub get` はロックファイルに従う | MVP |
+| E | 依存パッケージの侵害（供給網） | 任意コード | 依存は少数（dio, drift, xml, riverpod, go_router, freezed）。`pubspec.lock` をコミットし、Dependabot と `dart pub outdated` を CI に入れる。`flutter pub get` はロックファイルに従う。依存パッケージとビルドに使う Flutter / Dart の SDK を既知の脆弱性と照らし合わせる `dartvulncheck`（GitHub Advisory Database、届かないときは OSV.dev）を、PR・main への push・毎週月曜に回す（`.github/workflows/vulncheck.yml`）。道具はトークンの送り先を確かめたコミットで入れ、トークンは読み取りだけにする | MVP |
 
 ### 残留リスク
 
