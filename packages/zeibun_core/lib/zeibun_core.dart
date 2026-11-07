@@ -22,5 +22,6 @@ export 'src/sync/catalog_diff.dart';
 export 'src/text/fts_query.dart';
 export 'src/text/law_abbrev.dart';
 export 'src/text/normalize.dart';
+export 'src/text/paren_groups.dart';
 export 'src/text/search_synonyms.dart';
 export 'src/text/topic_index.dart';
