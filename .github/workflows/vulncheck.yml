@@ -9,7 +9,8 @@ on:
   pull_request:
   schedule:
     # Dependabot（週次）に合わせないのは、SDK の脆弱性は Dependabot が見ず、
-    # 公開されてから気づくまでを縮めたいため
+    # 公開されてから気づくまでを縮めたいため。毎時 0 分にしないのは、GitHub の
+    # 定期実行が混み合い、遅れたり飛ばされたりするため
     - cron: "17 0 * * *" # 毎日 9:17（日本時間）
   workflow_dispatch:
 
