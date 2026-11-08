@@ -2,13 +2,15 @@ name: Vulnerability check
 
 # 依存パッケージと、ビルドに使う Flutter / Dart の SDK を、既知の脆弱性と照らし合わせる
 # （設計書 §11 E 供給網）。CI のワークフローに混ぜないのは、コードを変えていなくても
-# 新しい脆弱性が公開されるので、週ごとにも回したいため。
+# 新しい脆弱性が公開されるので、毎日も回したいため。
 on:
   push:
     branches: [main]
   pull_request:
   schedule:
-    - cron: "17 0 * * 1" # 毎週月曜 9:17（日本時間）
+    # Dependabot（週次）に合わせないのは、SDK の脆弱性は Dependabot が見ず、
+    # 公開されてから気づくまでを縮めたいため
+    - cron: "17 0 * * *" # 毎日 9:17（日本時間）
   workflow_dispatch:
 
 concurrency:
