@@ -429,6 +429,25 @@ void main() {
     expect(exceptions(tester), isEmpty);
   });
 
+  for (final (name, dark) in [('light', false), ('dark', true)]) {
+    testWidgets(
+        'in $name mode, the law page with parentheticals folded meets the tap '
+        'target, label and contrast guidelines', (tester) async {
+      await tester.runAsync(() =>
+          container.read(settingsProvider.notifier).setCollapseParens(true));
+      if (dark) {
+        tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+        addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      }
+      final handle = tester.ensureSemantics();
+      await open(tester, '/law/426AC0000000011');
+      expect(find.textContaining('括弧書きを畳んでいます'), findsOneWidget);
+      expect(exceptions(tester), isEmpty);
+      expect(await violations(tester), isEmpty);
+      handle.dispose();
+    });
+  }
+
   testWidgets(
       'at the largest text the paragraph and item numbers fit '
       'instead of running into the text', (tester) async {
