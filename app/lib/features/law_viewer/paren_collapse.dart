@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:zeibun_core/zeibun_core.dart';
 
 /// 本文の括弧書きを畳むかどうか（設計書 §8）。

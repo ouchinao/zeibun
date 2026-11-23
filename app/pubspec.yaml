@@ -9,8 +9,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_localizations:
-    sdk: flutter
   zeibun_core:
     path: ../packages/zeibun_core
   flutter_riverpod: ^3.4.3
@@ -28,6 +26,7 @@ dependencies:
   wakelock_plus: ^1.8.2
   sqlite3: ^3.8.0
   package_info_plus: ^10.2.2
+  material_ui: ^1.4.0
 
 dev_dependencies:
   flutter_test:

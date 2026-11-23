@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// ホームの各節の見出し。ブックマーク節と同じ見た目にするためここに置く。
 class SectionTitle extends StatelessWidget {
