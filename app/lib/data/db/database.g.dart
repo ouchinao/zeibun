@@ -3884,38 +3884,38 @@ class $$LawsTableTableManager extends RootTableManager<
               getPrefetchedDataCallback: (items) async {
                 return [
                   if (lawRevisionsRefs)
-                    await $_getPrefetchedData<Law, $LawsTable, LawRevision>(
+                    await $_getPrefetchedDataByColumns<Law, $LawsTable,
+                            LawRevision, $LawRevisionsTable>(
                         currentTable: table,
                         referencedTable:
                             $$LawsTableReferences._lawRevisionsRefsTable(db),
                         managerFromTypedResult: (p0) =>
                             $$LawsTableReferences(db, table, p0)
                                 .lawRevisionsRefs,
-                        referencedItemsForCurrentItem: (item,
-                                referencedItems) =>
-                            referencedItems.where((e) => e.lawId == item.lawId),
+                        currentColumn: 'law_id',
+                        referencedColumn: 'law_id',
                         typedResults: items),
                   if (articlesRefs)
-                    await $_getPrefetchedData<Law, $LawsTable, Article>(
+                    await $_getPrefetchedDataByColumns<Law, $LawsTable, Article,
+                            $ArticlesTable>(
                         currentTable: table,
                         referencedTable:
                             $$LawsTableReferences._articlesRefsTable(db),
                         managerFromTypedResult: (p0) =>
                             $$LawsTableReferences(db, table, p0).articlesRefs,
-                        referencedItemsForCurrentItem: (item,
-                                referencedItems) =>
-                            referencedItems.where((e) => e.lawId == item.lawId),
+                        currentColumn: 'law_id',
+                        referencedColumn: 'law_id',
                         typedResults: items),
                   if (bookmarksRefs)
-                    await $_getPrefetchedData<Law, $LawsTable, Bookmark>(
+                    await $_getPrefetchedDataByColumns<Law, $LawsTable,
+                            Bookmark, $BookmarksTable>(
                         currentTable: table,
                         referencedTable:
                             $$LawsTableReferences._bookmarksRefsTable(db),
                         managerFromTypedResult: (p0) =>
                             $$LawsTableReferences(db, table, p0).bookmarksRefs,
-                        referencedItemsForCurrentItem: (item,
-                                referencedItems) =>
-                            referencedItems.where((e) => e.lawId == item.lawId),
+                        currentColumn: 'law_id',
+                        referencedColumn: 'law_id',
                         typedResults: items)
                 ];
               },
