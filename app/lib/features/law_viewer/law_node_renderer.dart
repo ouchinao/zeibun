@@ -5,6 +5,7 @@ import 'package:flutter/semantics.dart';
 import 'package:zeibun_core/zeibun_core.dart';
 
 import '../../util/highlight.dart';
+import 'paren_collapse.dart';
 
 /// 条のサブツリー（`body_json`）を Widget に変換する。
 ///
@@ -361,23 +362,44 @@ class _Renderer {
   Widget _inlineText(LawNode n, {String? prefix, bool prefixBold = false}) {
     final buf = StringBuffer();
     _collect(n, buf);
-    final text = buf.toString();
+    final raw = buf.toString();
+    final prefixSpan = prefix == null
+        ? null
+        : TextSpan(
+            text: prefix,
+            style:
+                prefixBold ? base.copyWith(fontWeight: FontWeight.bold) : base);
+    // 本文内検索の一致があるときは畳まないのは、一致が括弧書きの中にあると
+    // 強調した語が見えなくなるため
+    final collapse =
+        highlight.isEmpty && ParenCollapse.of(context) && raw.contains('（');
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
-      child: _unit(() => Text.rich(
-            TextSpan(children: [
-              if (prefix != null)
-                TextSpan(
-                    text: prefix,
-                    style: prefixBold
-                        ? base.copyWith(fontWeight: FontWeight.bold)
-                        : base),
-              ...highlightSpans(text, highlight, style: highlightStyle(scheme)),
-            ]),
-            style: base,
-          )),
+      child: _unit(() => collapse
+          ? CollapsedParenText(
+              segments: splitParenGroups(raw),
+              style: base,
+              prefix: prefixSpan,
+              restore: _restoreRuby,
+            )
+          : Text.rich(
+              TextSpan(children: [
+                if (prefixSpan != null) prefixSpan,
+                ...highlightSpans(_restoreRuby(raw), highlight,
+                    style: highlightStyle(scheme)),
+              ]),
+              style: base,
+            )),
     );
   }
+
+  /// ルビの読みを囲む目印。全角の丸括弧で直接書かないのは、括弧書きを畳むときに
+  /// 読み仮名まで括弧書きとして畳まれるため。表示の直前に [_restoreRuby] で戻す。
+  static const _rubyOpen = '\uE000';
+  static const _rubyClose = '\uE001';
+
+  static String _restoreRuby(String s) =>
+      s.replaceAll(_rubyOpen, '（').replaceAll(_rubyClose, '）');
 
   void _collect(LawNode n, StringBuffer buf) {
     if (n.tag == 'Rt') return;
@@ -387,7 +409,7 @@ class _Renderer {
         if (c is String) buf.write(c);
         if (c is LawNode && c.tag != 'Rt') _collect(c, buf);
       }
-      if (rt != null && rt.isNotEmpty) buf.write('（$rt）');
+      if (rt != null && rt.isNotEmpty) buf.write('$_rubyOpen$rt$_rubyClose');
       return;
     }
     var first = true;

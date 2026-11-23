@@ -8,12 +8,14 @@ import '../../data/db/database.dart';
 import '../../providers.dart';
 import '../../util/tab_label.dart';
 import '../bookmarks/bookmark_law_button.dart';
+import '../settings/settings_controller.dart';
 import 'article_menu.dart';
 import 'in_text_search.dart';
 import 'in_text_search_controller.dart';
 import 'law_body_controller.dart';
 import 'law_text.dart';
 import 'main_tab.dart';
+import 'paren_collapse.dart';
 import 'revisions_tab.dart';
 import 'suppl_tab.dart';
 import 'toc_drawer.dart';
@@ -221,12 +223,20 @@ class _LawPageState extends ConsumerState<LawPage>
     final main = text?.main ?? const <ArticleItem>[];
     final search = ref.watch(inTextSearchProvider(widget.lawId));
     final highlight = search?.terms ?? const <String>[];
+    final collapseParens = ref.watch(settingsProvider).collapseParens;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(law?.title ?? '読み込み中…', overflow: TextOverflow.ellipsis),
         actions: [
           BookmarkLawButton(lawId: widget.lawId),
+          IconButton(
+            icon: Icon(collapseParens ? Icons.unfold_more : Icons.unfold_less),
+            tooltip: collapseParens ? '括弧書きを開く' : '括弧書きを畳む',
+            onPressed: () => ref
+                .read(settingsProvider.notifier)
+                .setCollapseParens(!collapseParens),
+          ),
           IconButton(
             icon: Icon(search == null ? Icons.search : Icons.search_off),
             tooltip: '本文内検索',
@@ -259,37 +269,46 @@ class _LawPageState extends ConsumerState<LawPage>
                     _runSearch(text, _searchController.text, includeSuppl: v),
             onStep: _stepMatch,
           ),
+        if (collapseParens)
+          ParenCollapseNotice(
+            searching: highlight.isNotEmpty,
+            onOpenAll: () =>
+                ref.read(settingsProvider.notifier).setCollapseParens(false),
+          ),
         TabBar(controller: _tabs, tabs: const [
           Tab(child: TabLabel('本文')),
           Tab(child: TabLabel('附則')),
           Tab(child: TabLabel('改正履歴')),
         ]),
         Expanded(
-          child: law == null
-              ? const Center(child: CircularProgressIndicator())
-              : TabBarView(controller: _tabs, children: [
-                  MainTab(
-                    law: law,
-                    text: textAsync,
-                    highlight: highlight,
-                    scrollController: _mainScroll,
-                    onLongPress: (a) => _openArticleMenu(law, a),
-                    onToggleBookmark: (a) => _toggleArticleBookmark(law, a),
-                    onRetry: () => ref
-                        .read(lawBodyProvider(widget.lawId).notifier)
-                        .refresh(),
-                  ),
-                  SupplTab(
-                    law: law,
-                    text: textAsync,
-                    highlight: highlight,
-                    focus: _supplFocusOf(search),
-                    onLoadAmendSuppl: () => ref
-                        .read(lawBodyProvider(widget.lawId).notifier)
-                        .loadAmendSuppl(),
-                  ),
-                  RevisionsTab(law: law),
-                ]),
+          child: ParenCollapse(
+            enabled: collapseParens,
+            child: law == null
+                ? const Center(child: CircularProgressIndicator())
+                : TabBarView(controller: _tabs, children: [
+                    MainTab(
+                      law: law,
+                      text: textAsync,
+                      highlight: highlight,
+                      scrollController: _mainScroll,
+                      onLongPress: (a) => _openArticleMenu(law, a),
+                      onToggleBookmark: (a) => _toggleArticleBookmark(law, a),
+                      onRetry: () => ref
+                          .read(lawBodyProvider(widget.lawId).notifier)
+                          .refresh(),
+                    ),
+                    SupplTab(
+                      law: law,
+                      text: textAsync,
+                      highlight: highlight,
+                      focus: _supplFocusOf(search),
+                      onLoadAmendSuppl: () => ref
+                          .read(lawBodyProvider(widget.lawId).notifier)
+                          .loadAmendSuppl(),
+                    ),
+                    RevisionsTab(law: law),
+                  ]),
+          ),
         ),
       ]),
     );
