@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:zeibun_core/zeibun_core.dart';
 
 /// 検索語に合うテーマと、よく参照する条の一覧（設計書 §6）。

@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:zeibun_core/zeibun_core.dart';
 

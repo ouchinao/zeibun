@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// 外部ブラウザで開く。開けなかったときに黙らないのは、押しても何も起きない
