@@ -35,7 +35,7 @@ dev_dependencies:
   drift_dev: ^2.35.3
   build_runner: ^2.17.1
   flutter_launcher_icons: ^0.14.4
-  image: ^4.12.0
+  image: ^4.13.1
   plugin_platform_interface: ^2.1.8
   url_launcher_platform_interface: ^2.3.2
 
