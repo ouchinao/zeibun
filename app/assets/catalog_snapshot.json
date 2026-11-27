@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-10-05T00:29:02.779543Z",
+ "generated_at": "2026-11-27T13:17:44.474589Z",
  "laws": [
   {
    "law_id": "133AC0000000067",
@@ -130,9 +130,9 @@
    "category": "地方財政",
    "promulgation_date": "1950-05-30",
    "repeal_status": "None",
-   "updated": "2026-07-23T13:13:17+09:00",
-   "current_revision_id": "325AC0000000211_20260717_508AC0000000062",
-   "current_enforced_at": "2026-07-17",
+   "updated": "2026-11-02T00:18:40+09:00",
+   "current_revision_id": "325AC0000000211_20261102_508AC0000000062",
+   "current_enforced_at": "2026-11-02",
    "amendment_law_title": "防災庁設置法の施行に伴う関係法律の整備等に関する法律",
    "pending_revision_id": "325AC0000000211_20340401_431AC0000000002"
   },
@@ -145,9 +145,9 @@
    "category": "地方財政",
    "promulgation_date": "1950-07-31",
    "repeal_status": "None",
-   "updated": "2026-10-01T01:06:30+09:00",
-   "current_revision_id": "325AC0000000226_20261001_508AC0000000002",
-   "current_enforced_at": "2026-10-01",
+   "updated": "2026-11-24T13:23:31+09:00",
+   "current_revision_id": "325AC0000000226_20261124_508AC0000000002",
+   "current_enforced_at": "2026-11-24",
    "amendment_law_title": "地方税法等の一部を改正する法律",
    "pending_revision_id": "325AC0000000226_20300619_507AC0000000074"
   },
@@ -187,10 +187,10 @@
    "category": "地方財政",
    "promulgation_date": "1950-07-31",
    "repeal_status": "None",
-   "updated": "2026-09-08T11:15:58+09:00",
-   "current_revision_id": "325CO0000000245_20260822_508CO0000000251",
-   "current_enforced_at": "2026-08-22",
-   "amendment_law_title": "地方税法施行令の一部を改正する政令",
+   "updated": "2026-11-24T13:27:46+09:00",
+   "current_revision_id": "325CO0000000245_20261124_508CO0000000083",
+   "current_enforced_at": "2026-11-24",
+   "amendment_law_title": "地方税法施行令等の一部を改正する政令",
    "pending_revision_id": "325CO0000000245_20290401_508CO0000000083"
   },
   {
@@ -624,10 +624,10 @@
    "category": "財務通則",
    "promulgation_date": "1954-03-31",
    "repeal_status": "None",
-   "updated": "2026-04-21T10:22:19+09:00",
-   "current_revision_id": "329CO0000000051_20260401_507CO0000000137",
+   "updated": "2026-10-09T18:04:18+09:00",
+   "current_revision_id": "329CO0000000051_20260401_508CO0000000085",
    "current_enforced_at": "2026-04-01",
-   "amendment_law_title": "国税収納金整理資金に関する法律施行令の一部を改正する政令",
+   "amendment_law_title": "関税定率法等の一部を改正する法律の施行に伴う関係政令の整備等に関する政令",
    "pending_revision_id": "329CO0000000051_20340401_431CO0000000100"
   },
   {
@@ -710,9 +710,9 @@
    "category": "地方財政",
    "promulgation_date": "1954-05-13",
    "repeal_status": "None",
-   "updated": "2026-10-01T01:29:53+09:00",
-   "current_revision_id": "329M50000002023_20261001_508M60000008089",
-   "current_enforced_at": "2026-10-01",
+   "updated": "2026-11-24T13:30:34+09:00",
+   "current_revision_id": "329M50000002023_20261124_508M60000008046",
+   "current_enforced_at": "2026-11-24",
    "amendment_law_title": "地方税法施行規則の一部を改正する省令",
    "pending_revision_id": "329M50000002023_20290401_508M60000008047"
   },
@@ -886,9 +886,9 @@
    "category": "国税",
    "promulgation_date": "1957-03-31",
    "repeal_status": "None",
-   "updated": "2026-10-01T02:12:41+09:00",
-   "current_revision_id": "332AC0000000026_20261001_508AC0000000012",
-   "current_enforced_at": "2026-10-01",
+   "updated": "2026-09-15T13:15:57+09:00",
+   "current_revision_id": "332AC0000000026_20261126_508AC0000000012",
+   "current_enforced_at": "2026-11-26",
    "amendment_law_title": "所得税法等の一部を改正する法律",
    "pending_revision_id": "332AC0000000026_20300101_505AC0000000003"
   },
@@ -974,9 +974,9 @@
    "category": "国税",
    "promulgation_date": "1957-03-31",
    "repeal_status": "None",
-   "updated": "2026-09-15T13:43:40+09:00",
-   "current_revision_id": "332CO0000000043_20260731_508CO0000000098",
-   "current_enforced_at": "2026-07-31",
+   "updated": "2026-11-26T09:53:26+09:00",
+   "current_revision_id": "332CO0000000043_20261124_508CO0000000098",
+   "current_enforced_at": "2026-11-24",
    "amendment_law_title": "租税特別措置法施行令の一部を改正する政令",
    "pending_revision_id": "332CO0000000043_20280401_508CO0000000098"
   },
@@ -1059,9 +1059,9 @@
    "category": "国税",
    "promulgation_date": "1957-03-31",
    "repeal_status": "None",
-   "updated": "2026-08-17T14:55:30+09:00",
-   "current_revision_id": "332M50000040015_20260901_507M60000040026",
-   "current_enforced_at": "2026-09-01",
+   "updated": "2026-08-17T16:42:43+09:00",
+   "current_revision_id": "332M50000040015_20261126_508M60000040021",
+   "current_enforced_at": "2026-11-26",
    "amendment_law_title": "租税特別措置法施行規則等の一部を改正する省令",
    "pending_revision_id": "332M50000040015_20300101_505M60000040019"
   },
@@ -1190,9 +1190,9 @@
    "category": "国税",
    "promulgation_date": "1962-04-02",
    "repeal_status": "None",
-   "updated": "2026-05-25T00:25:18+09:00",
-   "current_revision_id": "337AC0000000066_20260521_505AC0000000003",
-   "current_enforced_at": "2026-05-21",
+   "updated": "2026-11-01T00:24:13+09:00",
+   "current_revision_id": "337AC0000000066_20261101_507AC0000000013",
+   "current_enforced_at": "2026-11-01",
    "amendment_law_title": "所得税法等の一部を改正する法律",
    "pending_revision_id": "337AC0000000066_20281223_508AC0000000046"
   },
@@ -1263,7 +1263,7 @@
    "category": "地方財政",
    "promulgation_date": "1962-08-20",
    "repeal_status": "None",
-   "updated": "2026-09-25T10:37:21+09:00",
+   "updated": "2026-10-13T15:38:21+09:00",
    "current_revision_id": "337M50000008017_20260724_508M60000008092",
    "current_enforced_at": "2026-07-24",
    "amendment_law_title": "普通交付税に関する省令の一部を改正する省令"
@@ -1291,11 +1291,10 @@
    "category": "国税",
    "promulgation_date": "1962-04-02",
    "repeal_status": "None",
-   "updated": "2026-05-21T01:27:07+09:00",
-   "current_revision_id": "337M50000040028_20260521_507M60000040025",
-   "current_enforced_at": "2026-05-21",
-   "amendment_law_title": "国税通則法施行規則の一部を改正する省令",
-   "pending_revision_id": "337M50000040028_20261101_507M60000040025"
+   "updated": "2026-11-01T00:24:49+09:00",
+   "current_revision_id": "337M50000040028_20261101_507M60000040025",
+   "current_enforced_at": "2026-11-01",
+   "amendment_law_title": "国税通則法施行規則の一部を改正する省令"
   },
   {
    "law_id": "337M50000040030",
@@ -1389,10 +1388,10 @@
    "category": "国税",
    "promulgation_date": "1965-03-31",
    "repeal_status": "None",
-   "updated": "2026-07-28T13:08:27+09:00",
-   "current_revision_id": "340AC0000000034_20261001_507AC0000000070",
+   "updated": "2026-10-09T17:36:03+09:00",
+   "current_revision_id": "340AC0000000034_20261001_508AC0000000012",
    "current_enforced_at": "2026-10-01",
-   "amendment_law_title": "日本学術会議法",
+   "amendment_law_title": "所得税法等の一部を改正する法律",
    "pending_revision_id": "340AC0000000034_20300619_507AC0000000074"
   },
   {
@@ -1431,7 +1430,7 @@
    "category": "国税",
    "promulgation_date": "1965-03-31",
    "repeal_status": "None",
-   "updated": "2026-09-08T11:57:35+09:00",
+   "updated": "2026-10-27T16:34:42+09:00",
    "current_revision_id": "340CO0000000096_20260522_508CO0000000093",
    "current_enforced_at": "2026-05-22",
    "amendment_law_title": "所得税法施行令の一部を改正する政令",
@@ -1605,10 +1604,10 @@
    "category": "国税",
    "promulgation_date": "1967-05-31",
    "repeal_status": "None",
-   "updated": "2026-10-01T03:20:24+09:00",
-   "current_revision_id": "342AC0000000023_20261001_507AC0000000070",
-   "current_enforced_at": "2026-10-01",
-   "amendment_law_title": "日本学術会議法",
+   "updated": "2026-11-20T00:01:18+09:00",
+   "current_revision_id": "342AC0000000023_20261120_508AC0000000029",
+   "current_enforced_at": "2026-11-20",
+   "amendment_law_title": "経済社会情勢の変化を踏まえた企業の事業活動の持続的な発展を図るための産業競争力強化法等の一部を改正する法律",
    "pending_revision_id": "342AC0000000023_20291211_507AC0000000013"
   },
   {
@@ -1620,10 +1619,10 @@
    "category": "国税",
    "promulgation_date": "1967-06-12",
    "repeal_status": "None",
-   "updated": "2026-10-01T03:21:03+09:00",
-   "current_revision_id": "342AC0000000035_20261001_507AC0000000033",
-   "current_enforced_at": "2026-10-01",
-   "amendment_law_title": "労働安全衛生法及び作業環境測定法の一部を改正する法律",
+   "updated": "2026-11-01T00:27:36+09:00",
+   "current_revision_id": "342AC0000000035_20261101_508AC0000000021",
+   "current_enforced_at": "2026-11-01",
+   "amendment_law_title": "物資の流通の効率化に関する法律の一部を改正する法律",
    "pending_revision_id": "342AC0000000035_20300619_507AC0000000074"
   },
   {
@@ -1965,7 +1964,8 @@
    "updated": "2024-07-12T14:11:15+09:00",
    "current_revision_id": "346M50000008013_20230401_505M60000008036",
    "current_enforced_at": "2023-04-01",
-   "amendment_law_title": "地方税法施行規則等の一部を改正する省令"
+   "amendment_law_title": "地方税法施行規則等の一部を改正する省令",
+   "pending_revision_id": "346M50000008013_20270401_508M60000008119"
   },
   {
    "law_id": "346M50000040057",
@@ -2253,10 +2253,10 @@
    "category": "国税",
    "promulgation_date": "1977-06-24",
    "repeal_status": "None",
-   "updated": "2026-08-24T09:40:58+09:00",
-   "current_revision_id": "352CO0000000220_20260808_508CO0000000254",
-   "current_enforced_at": "2026-08-08",
-   "amendment_law_title": "溶融亜鉛めっき鋼帯及び鋼板に対して課する暫定的な不当廉売関税に関する政令",
+   "updated": "2026-11-13T09:41:50+09:00",
+   "current_revision_id": "352CO0000000220_20261101_508CO0000000085",
+   "current_enforced_at": "2026-11-01",
+   "amendment_law_title": "関税定率法等の一部を改正する法律の施行に伴う関係政令の整備等に関する政令",
    "pending_revision_id": "352CO0000000220_20270101_508CO0000000085"
   },
   {
@@ -2381,10 +2381,10 @@
    "category": "国税",
    "promulgation_date": "1988-12-30",
    "repeal_status": "None",
-   "updated": "2026-10-01T03:58:03+09:00",
-   "current_revision_id": "363AC0000000108_20261001_507AC0000000070",
-   "current_enforced_at": "2026-10-01",
-   "amendment_law_title": "日本学術会議法",
+   "updated": "2026-11-01T00:29:07+09:00",
+   "current_revision_id": "363AC0000000108_20261101_507AC0000000013",
+   "current_enforced_at": "2026-11-01",
+   "amendment_law_title": "所得税法等の一部を改正する法律",
    "pending_revision_id": "363AC0000000108_20300619_507AC0000000074"
   },
   {
@@ -2396,10 +2396,10 @@
    "category": "国税",
    "promulgation_date": "1988-12-30",
    "repeal_status": "None",
-   "updated": "2026-10-01T03:59:04+09:00",
-   "current_revision_id": "363CO0000000360_20261001_508CO0000000108",
-   "current_enforced_at": "2026-10-01",
-   "amendment_law_title": "消費税法施行令等の一部を改正する政令の一部を改正する政令",
+   "updated": "2026-11-01T00:29:44+09:00",
+   "current_revision_id": "363CO0000000360_20261101_507CO0000000125",
+   "current_enforced_at": "2026-11-01",
+   "amendment_law_title": "消費税法施行令の一部を改正する政令",
    "pending_revision_id": "363CO0000000360_20280401_508CO0000000096"
   },
   {
@@ -2411,10 +2411,10 @@
    "category": "国税",
    "promulgation_date": "1988-12-30",
    "repeal_status": "None",
-   "updated": "2026-10-01T03:59:50+09:00",
-   "current_revision_id": "363M50000040053_20261001_508M60000040019",
-   "current_enforced_at": "2026-10-01",
-   "amendment_law_title": "消費税法施行規則等の一部を改正する省令",
+   "updated": "2026-11-01T00:30:19+09:00",
+   "current_revision_id": "363M50000040053_20261101_507M60000040022",
+   "current_enforced_at": "2026-11-01",
+   "amendment_law_title": "消費税法施行規則の一部を改正する省令",
    "pending_revision_id": "363M50000040053_20280401_508M60000040019"
   },
   {
@@ -3858,7 +3858,7 @@
    "category": "国税",
    "promulgation_date": "2010-03-31",
    "repeal_status": "None",
-   "updated": "2026-08-03T14:40:54+09:00",
+   "updated": "2026-11-17T11:55:47+09:00",
    "current_revision_id": "422M60000040022_20260731_508M60000040041",
    "current_enforced_at": "2026-07-31",
    "amendment_law_title": "租税特別措置の適用状況の透明化等に関する法律施行規則の一部を改正する省令"
@@ -3886,8 +3886,8 @@
    "category": "国税",
    "promulgation_date": "2011-04-27",
    "repeal_status": "None",
-   "updated": "2025-12-19T09:09:46+09:00",
-   "current_revision_id": "423AC0000000029_20260401_506AC0000000008",
+   "updated": "2026-10-09T17:49:31+09:00",
+   "current_revision_id": "423AC0000000029_20260401_508AC0000000012",
    "current_enforced_at": "2026-04-01",
    "amendment_law_title": "所得税法等の一部を改正する法律",
    "pending_revision_id": "423AC0000000029_20270401_508AC0000000012"
@@ -4186,8 +4186,8 @@
    "category": "国税",
    "promulgation_date": "2014-03-31",
    "repeal_status": "None",
-   "updated": "2026-04-21T10:52:48+09:00",
-   "current_revision_id": "426CO0000000139_20260401_507CO0000000122",
+   "updated": "2026-10-09T18:18:07+09:00",
+   "current_revision_id": "426CO0000000139_20260401_508CO0000000095",
    "current_enforced_at": "2026-04-01",
    "amendment_law_title": "地方法人税法施行令の一部を改正する政令",
    "pending_revision_id": "426CO0000000139_20261211_508CO0000000095"
@@ -4626,10 +4626,10 @@
    "category": "国税",
    "promulgation_date": "2019-03-29",
    "repeal_status": "None",
-   "updated": "2026-07-15T10:09:08+09:00",
-   "current_revision_id": "431M60000008040_20260701_508M60000008087",
-   "current_enforced_at": "2026-07-01",
-   "amendment_law_title": "森林環境税及び森林環境譲与税に関する法律施行規則の一部を改正する省令"
+   "updated": "2026-11-02T09:45:58+09:00",
+   "current_revision_id": "431M60000008040_20261021_508M60000008119",
+   "current_enforced_at": "2026-10-21",
+   "amendment_law_title": "地方税法施行規則等の一部を改正する省令"
   },
   {
    "law_id": "431M60000008041",
@@ -4640,9 +4640,9 @@
    "category": "地方財政",
    "promulgation_date": "2019-03-29",
    "repeal_status": "None",
-   "updated": "2022-08-20T17:35:04+09:00",
-   "current_revision_id": "431M60000008041_20220114_504M60000008001",
-   "current_enforced_at": "2022-01-14",
+   "updated": "2026-11-02T09:43:41+09:00",
+   "current_revision_id": "431M60000008041_20261021_508M60000008119",
+   "current_enforced_at": "2026-10-21",
    "amendment_law_title": "地方税法施行規則等の一部を改正する省令"
   },
   {
@@ -5000,8 +5000,9 @@
    "title_kana": "ちほうだんたいにたいしてこうふすべきれいわろくねんどぶんのしんさいふっこうとくべつこうふぜいのがくのさんていほうほう、けっていじきおよびけっていがくならびにこうふじきおよびこうふがくとうのとくれいにかんするしょうれい",
    "category": "地方財政",
    "promulgation_date": "2024-04-26",
-   "repeal_status": "None",
-   "updated": "2024-05-14T09:27:30+09:00",
+   "repeal_status": "LossOfEffectiveness",
+   "repeal_date": "2024-04-26",
+   "updated": "2026-11-05T18:11:45+09:00",
    "current_revision_id": "506M60000008046_20240426_000000000000000",
    "current_enforced_at": "2024-04-26"
   },
@@ -5055,9 +5056,10 @@
    "category": "財務通則",
    "promulgation_date": "2025-03-31",
    "repeal_status": "None",
-   "updated": "2026-04-21T10:25:34+09:00",
-   "current_revision_id": "507CO0000000134_20260401_000000000000000",
+   "updated": "2026-10-09T18:19:55+09:00",
+   "current_revision_id": "507CO0000000134_20260401_508CO0000000105",
    "current_enforced_at": "2026-04-01",
+   "amendment_law_title": "防衛特別法人税に関する政令の一部を改正する政令",
    "pending_revision_id": "507CO0000000134_20280101_508CO0000000105"
   },
   {
@@ -5109,7 +5111,7 @@
    "category": "財務通則",
    "promulgation_date": "2025-03-31",
    "repeal_status": "None",
-   "updated": "2026-05-20T14:24:14+09:00",
+   "updated": "2026-11-17T11:41:46+09:00",
    "current_revision_id": "507M60000040031_20260414_508M60000040042",
    "current_enforced_at": "2026-04-14",
    "amendment_law_title": "防衛特別法人税に関する省令の一部を改正する省令",
@@ -5156,43 +5158,18 @@
    "current_enforced_at": "2026-07-01"
   },
   {
-   "law_id": "508CO0000000114",
-   "law_num": "令和八年政令第百十四号",
-   "law_type": "CabinetOrder",
-   "title": "地方税法等の一部を改正する法律の一部の施行期日を定める政令",
-   "title_kana": "ちほうぜいほうとうのいちぶをかいせいするほうりつのいちぶのしこうきじつをさだめるせいれい",
-   "category": "地方財政",
-   "promulgation_date": "2026-04-03",
-   "repeal_status": "None",
-   "updated": "2026-09-10T18:24:05+09:00",
-   "current_revision_id": "508CO0000000114_20260403_000000000000000",
-   "current_enforced_at": "2026-04-03"
-  },
-  {
-   "law_id": "508CO0000000116",
-   "law_num": "令和八年政令第百十六号",
-   "law_type": "CabinetOrder",
-   "title": "所得税法等の一部を改正する法律の一部の施行期日を定める政令",
-   "title_kana": "しょとくぜいほうとうのいちぶをかいせいするほうりつのいちぶのしこうきじつをさだめるせいれい",
-   "category": "国税",
-   "promulgation_date": "2026-04-03",
-   "repeal_status": "None",
-   "updated": "2026-09-10T18:25:08+09:00",
-   "current_revision_id": "508CO0000000116_20260403_000000000000000",
-   "current_enforced_at": "2026-04-03"
-  },
-  {
    "law_id": "508CO0000000224",
    "law_num": "令和八年政令第二百二十四号",
    "law_type": "CabinetOrder",
-   "title": "ニッケル系ステンレス冷延鋼帯及び冷延鋼板に対して課する暫定的な不当廉売関税に関する政令",
-   "title_kana": "にっけるけいすてんれすれいえんこうたいおよびれいえんこうはんにたいしてかするざんていてきなふとうれんばいかんぜいにかんするせいれい",
+   "title": "ニッケル系ステンレス冷延鋼帯及び冷延鋼板に対して課する不当廉売関税に関する政令",
+   "title_kana": "にっけるけいすてんれすれいえんこうたいおよびれいえんこうばんにたいしてかするふとうれんばいかんぜいにかんするせいれい",
    "category": "国税",
    "promulgation_date": "2026-07-08",
    "repeal_status": "None",
-   "updated": "2026-07-17T09:27:45+09:00",
-   "current_revision_id": "508CO0000000224_20260709_000000000000000",
-   "current_enforced_at": "2026-07-09"
+   "updated": "2026-11-09T13:57:41+09:00",
+   "current_revision_id": "508CO0000000224_20261031_508CO0000000340",
+   "current_enforced_at": "2026-10-31",
+   "amendment_law_title": "ニッケル系ステンレス冷延鋼帯及び冷延鋼板に対して課する暫定的な不当廉売関税に関する政令の一部を改正する政令"
   },
   {
    "law_id": "508CO0000000254",
@@ -5237,27 +5214,29 @@
    "law_id": "508M60000040049",
    "law_num": "令和八年財務省令第四十九号",
    "law_type": "MinisterialOrdinance",
-   "title": "ニッケル系ステンレス冷延鋼帯及び冷延鋼板に対して課する暫定的な不当廉売関税に関する政令第一条第二項に規定する特定国等において熱延鋼帯について冷間圧延をする工程を経て製造されていない旨の証明書の提出に関する省令",
-   "title_kana": "にっけるけいすてんれすれいえんこうたいおよびれいえんこうばんにたいしてかするざんていてきなふとうれんばいかんぜいにかんするせいれいだいいちじょうだいにこうにきていするとくていこくとうにおいてねつえんこうたいについてれいかんあつえんをするこうていをへてせいぞうされていないむねのしょうめいしょのていしゅつにかんするしょうれい",
+   "title": "ニッケル系ステンレス冷延鋼帯及び冷延鋼板に対して課する不当廉売関税に関する政令第一条第三項に規定する特定国等において熱延鋼帯について冷間圧延をする工程を経て製造されていない旨の証明書の提出に関する省令",
+   "title_kana": "にっけるけいすてんれすれいえんこうたいおよびれいえんこうばんにたいしてかするふとうれんばいかんぜいにかんするせいれいだいいちじょうだいさんこうにきていするとくていこくとうにおいてねつえんこうたいについてれいかんあつえんをするこうていをへてせいぞうされていないむねのしょうめいしょのていしゅつにかんするしょうれい",
    "category": "国税",
    "promulgation_date": "2026-07-08",
    "repeal_status": "None",
-   "updated": "2026-09-11T05:42:28+09:00",
-   "current_revision_id": "508M60000040049_20260709_000000000000000",
-   "current_enforced_at": "2026-07-09"
+   "updated": "2026-11-11T13:07:30+09:00",
+   "current_revision_id": "508M60000040049_20261031_508M60000040064",
+   "current_enforced_at": "2026-10-31",
+   "amendment_law_title": "ニッケル系ステンレス冷延鋼帯及び冷延鋼板に対して課する暫定的な不当廉売関税に関する政令第一条第二項に規定する特定国等において熱延鋼帯について冷間圧延をする工程を経て製造されていない旨の証明書の提出に関する省令の一部を改正する省令"
   },
   {
    "law_id": "508M60000400060",
    "law_num": "令和八年経済産業省令第六十号",
    "law_type": "MinisterialOrdinance",
-   "title": "ニッケル系ステンレス冷延鋼帯及び冷延鋼板に対して課する暫定的な不当廉売関税に関する政令第一条第二項に規定する特定国等において熱延鋼帯について冷間圧延をする工程を経て製造されていない旨の証明書の発給に関する省令",
-   "title_kana": "にっけるけいすてんれすれいえんこうたいおよびれいえんこうばんにたいしてかするざんていてきなふとうれんばいかんぜいにかんするせいれいだいいちじょうだいにこうにきていするとくていこくとうにおいてねつえんこうたいについてれいかんあつえんをするこうていをへてせいぞうされていないむねのしょうめいしょのはっきゅうにかんするしょうれい",
+   "title": "ニッケル系ステンレス冷延鋼帯及び冷延鋼板に対して課する不当廉売関税に関する政令第一条第三項に規定する特定国等において熱延鋼帯について冷間圧延をする工程を経て製造されていない旨の証明書の発給に関する省令",
+   "title_kana": "にっけるけいすてんれすれいえんこうたいおよびれいえんこうばんにたいしてかするふとうれんばいかんぜいにかんするせいれいだいいちじょうだいさんこうにきていするとくていこくとうにおいてねつえんこうたいについてれいかんあつえんをするこうていをへてせいぞうされていないむねのしょうめいしょのはっきゅうにかんするしょうれい",
    "category": "国税",
    "promulgation_date": "2026-07-08",
    "repeal_status": "None",
-   "updated": "2026-07-22T09:16:28+09:00",
-   "current_revision_id": "508M60000400060_20260709_000000000000000",
-   "current_enforced_at": "2026-07-09"
+   "updated": "2026-11-12T10:15:36+09:00",
+   "current_revision_id": "508M60000400060_20261031_508M60000400078",
+   "current_enforced_at": "2026-10-31",
+   "amendment_law_title": "ニッケル系ステンレス冷延鋼帯及び冷延鋼板に対して課する暫定的な不当廉売関税に関する政令第一条第二項に規定する特定国等において熱延鋼帯について冷間圧延をする工程を経て製造されていない旨の証明書の発給に関する省令の一部を改正する省令"
   }
  ]
 }
